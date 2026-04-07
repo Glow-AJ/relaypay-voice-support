@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Loader2, Upload, FileText, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Database } from '@/lib/database.types'
 
 type KBEntry = Database['public']['Tables']['knowledge_base']['Row']
 
 const CATEGORIES = ['fees', 'onboarding', 'payouts', 'invoicing', 'compliance', 'general', 'troubleshooting']
+
+type InputMode = 'type' | 'upload'
 
 export default function KnowledgeBasePage() {
   const [entries, setEntries] = useState<KBEntry[]>([])
@@ -18,6 +20,10 @@ export default function KnowledgeBasePage() {
   const [showForm, setShowForm] = useState(false)
   const [editEntry, setEditEntry] = useState<KBEntry | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [inputMode, setInputMode] = useState<InputMode>('type')
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [isExtracting, setIsExtracting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [form, setForm] = useState({
     title: '',
@@ -43,13 +49,81 @@ export default function KnowledgeBasePage() {
   function openNew() {
     setEditEntry(null)
     setForm({ title: '', content: '', category: 'general', source: '' })
+    setInputMode('type')
+    setUploadedFile(null)
     setShowForm(true)
   }
 
   function openEdit(entry: KBEntry) {
     setEditEntry(entry)
     setForm({ title: entry.title, content: entry.content, category: entry.category, source: entry.source || '' })
+    setInputMode('type')
+    setUploadedFile(null)
     setShowForm(true)
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadedFile(file)
+    setIsExtracting(true)
+
+    try {
+      let text = ''
+
+      if (file.type === 'application/pdf') {
+        // Dynamically import pdfjs to avoid SSR issues
+        const pdfjsLib = await import('pdfjs-dist')
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+
+        const arrayBuffer = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        const pages: string[] = []
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items
+            .map((item: any) => ('str' in item ? item.str : ''))
+            .join(' ')
+          pages.push(pageText)
+        }
+        text = pages.join('\n\n')
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.name.endsWith('.docx')
+      ) {
+        const mammoth = await import('mammoth')
+        const arrayBuffer = await file.arrayBuffer()
+        const result = await mammoth.extractRawText({ arrayBuffer })
+        text = result.value
+      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        text = await file.text()
+      } else {
+        text = await file.text()
+      }
+
+      // Auto-fill title from filename if empty
+      if (!form.title) {
+        const titleFromFile = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+        setForm((prev) => ({ ...prev, title: titleFromFile, content: text.trim() }))
+      } else {
+        setForm((prev) => ({ ...prev, content: text.trim() }))
+      }
+    } catch (err) {
+      console.error('File extraction failed:', err)
+      alert('Could not extract text from this file. Please paste the content manually.')
+      setInputMode('type')
+    } finally {
+      setIsExtracting(false)
+    }
+  }
+
+  function clearFile() {
+    setUploadedFile(null)
+    setForm((prev) => ({ ...prev, content: '' }))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function handleSave() {
@@ -65,18 +139,17 @@ export default function KnowledgeBasePage() {
       await supabase.from('knowledge_base').insert({ ...form, is_active: true })
     }
 
-    // Trigger embedding sync in n8n
-    if (!editEntry) {
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-kb-sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: editEntry ? 'update' : 'create', title: form.title }),
-        })
-      } catch { /* non-blocking */ }
-    }
+    // Trigger embedding sync in n8n (non-blocking)
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-kb-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: editEntry ? 'update' : 'create', title: form.title }),
+      })
+    } catch { /* n8n may not be live yet — non-blocking */ }
 
     setShowForm(false)
+    setUploadedFile(null)
     setIsSaving(false)
     fetchEntries()
   }
@@ -87,7 +160,7 @@ export default function KnowledgeBasePage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this article?')) return
+    if (!confirm('Delete this article? This cannot be undone.')) return
     await supabase.from('knowledge_base').delete().eq('id', id)
     fetchEntries()
   }
@@ -208,13 +281,15 @@ export default function KnowledgeBasePage() {
       {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
-            <div className="border-b px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl max-h-[90vh] flex flex-col">
+            <div className="border-b px-6 py-5 shrink-0" style={{ borderColor: '#E5E7EB' }}>
               <h2 className="text-sm font-semibold" style={{ color: '#111827' }}>
                 {editEntry ? 'Edit Article' : 'New Article'}
               </h2>
             </div>
-            <div className="flex flex-col gap-4 px-6 py-5">
+
+            <div className="flex flex-col gap-4 px-6 py-5 overflow-y-auto">
+              {/* Title */}
               <div>
                 <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Title</label>
                 <input
@@ -225,6 +300,8 @@ export default function KnowledgeBasePage() {
                   placeholder="Article title"
                 />
               </div>
+
+              {/* Category */}
               <div>
                 <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Category</label>
                 <select
@@ -238,19 +315,115 @@ export default function KnowledgeBasePage() {
                   ))}
                 </select>
               </div>
+
+              {/* Content — toggle between type and upload */}
               <div>
-                <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Content</label>
-                <textarea
-                  value={form.content}
-                  onChange={(e) => setForm({ ...form, content: e.target.value })}
-                  rows={8}
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[#29ABE2] resize-none"
-                  style={{ borderColor: '#E5E7EB', color: '#111827' }}
-                  placeholder="Article content — this is what the AI uses to answer questions..."
-                />
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-xs font-medium" style={{ color: '#374151' }}>Content</label>
+                  {/* Mode toggle */}
+                  <div className="flex rounded-lg border overflow-hidden text-[11px]" style={{ borderColor: '#E5E7EB' }}>
+                    <button
+                      type="button"
+                      onClick={() => setInputMode('type')}
+                      className="px-3 py-1 transition-colors font-medium"
+                      style={{
+                        backgroundColor: inputMode === 'type' ? '#1B3A7A' : '#F9FAFB',
+                        color: inputMode === 'type' ? '#FFFFFF' : '#6B7280',
+                      }}
+                    >
+                      Type
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInputMode('upload')}
+                      className="px-3 py-1 transition-colors font-medium"
+                      style={{
+                        backgroundColor: inputMode === 'upload' ? '#1B3A7A' : '#F9FAFB',
+                        color: inputMode === 'upload' ? '#FFFFFF' : '#6B7280',
+                      }}
+                    >
+                      Upload File
+                    </button>
+                  </div>
+                </div>
+
+                {inputMode === 'type' ? (
+                  <textarea
+                    value={form.content}
+                    onChange={(e) => setForm({ ...form, content: e.target.value })}
+                    rows={8}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[#29ABE2] resize-none"
+                    style={{ borderColor: '#E5E7EB', color: '#111827' }}
+                    placeholder="Paste or type the article content — this is what the AI uses to answer questions..."
+                  />
+                ) : (
+                  <div>
+                    {/* Drop zone */}
+                    {!uploadedFile ? (
+                      <label
+                        className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 cursor-pointer transition-colors hover:border-[#29ABE2] hover:bg-[#F0F9FF]"
+                        style={{ borderColor: '#E5E7EB' }}
+                      >
+                        <Upload size={20} style={{ color: '#9CA3AF' }} />
+                        <div className="text-center">
+                          <p className="text-xs font-medium" style={{ color: '#374151' }}>
+                            Click to upload a document
+                          </p>
+                          <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>
+                            PDF, Word (.docx), or plain text
+                          </p>
+                        </div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                      </label>
+                    ) : (
+                      <div>
+                        {/* File chip */}
+                        <div className="mb-3 flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }}>
+                          <FileText size={14} style={{ color: '#29ABE2' }} />
+                          <span className="flex-1 text-xs truncate" style={{ color: '#374151' }}>{uploadedFile.name}</span>
+                          {isExtracting
+                            ? <Loader2 size={13} className="animate-spin shrink-0" style={{ color: '#9CA3AF' }} />
+                            : (
+                              <button type="button" onClick={clearFile} className="shrink-0">
+                                <X size={13} style={{ color: '#9CA3AF' }} />
+                              </button>
+                            )
+                          }
+                        </div>
+
+                        {/* Extracted text — editable */}
+                        {!isExtracting && (
+                          <textarea
+                            value={form.content}
+                            onChange={(e) => setForm({ ...form, content: e.target.value })}
+                            rows={7}
+                            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[#29ABE2] resize-none"
+                            style={{ borderColor: '#E5E7EB', color: '#111827' }}
+                            placeholder="Extracted text will appear here — you can edit it before saving..."
+                          />
+                        )}
+
+                        {isExtracting && (
+                          <div className="flex items-center gap-2 py-4 justify-center">
+                            <Loader2 size={14} className="animate-spin" style={{ color: '#29ABE2' }} />
+                            <span className="text-xs" style={{ color: '#6B7280' }}>Extracting text from document...</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {/* Source URL */}
               <div>
-                <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Source URL (optional)</label>
+                <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Source URL <span style={{ color: '#9CA3AF' }}>(optional)</span></label>
                 <input
                   value={form.source}
                   onChange={(e) => setForm({ ...form, source: e.target.value })}
@@ -260,7 +433,8 @@ export default function KnowledgeBasePage() {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t px-6 py-4" style={{ borderColor: '#E5E7EB' }}>
+
+            <div className="flex justify-end gap-2 border-t px-6 py-4 shrink-0" style={{ borderColor: '#E5E7EB' }}>
               <button
                 onClick={() => setShowForm(false)}
                 className="rounded-lg border px-4 py-2 text-xs font-medium transition-colors hover:bg-[#F9FAFB]"
@@ -270,12 +444,12 @@ export default function KnowledgeBasePage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[#162F63] disabled:opacity-60"
+                disabled={isSaving || isExtracting || !form.title.trim() || !form.content.trim()}
+                className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[#162F63] disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#1B3A7A' }}
               >
                 {isSaving && <Loader2 size={12} className="animate-spin" />}
-                {editEntry ? 'Update' : 'Save & Embed'}
+                {editEntry ? 'Update Article' : 'Save & Embed'}
               </button>
             </div>
           </div>

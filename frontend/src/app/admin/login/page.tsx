@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -19,15 +19,24 @@ export default function AdminLoginPage() {
     setError('')
     setIsLoading(true)
 
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
 
     if (authError) {
-      setError('Invalid email or password.')
+      if (authError.message.toLowerCase().includes('invalid')) {
+        setError('Invalid email or password. Check your credentials and try again.')
+      } else {
+        setError(authError.message)
+      }
       setIsLoading(false)
       return
     }
 
+    // Refresh so server components see the new session cookie
     router.push('/admin')
+    router.refresh()
   }
 
   return (

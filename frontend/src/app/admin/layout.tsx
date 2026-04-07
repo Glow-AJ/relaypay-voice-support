@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
 import {
   LayoutDashboard,
@@ -24,10 +24,12 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
 
   async function handleSignOut() {
     await supabase.auth.signOut()
-    window.location.href = '/admin/login'
+    router.push('/admin/login')
+    router.refresh()
   }
 
   return (
