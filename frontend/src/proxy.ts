@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -25,19 +25,19 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — required to keep auth alive
+  // Refresh session — required to keep auth tokens alive
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 
-  // Unauthenticated user trying to access admin (except login page)
+  // No session → redirect to login (except login page itself)
   if (!user && pathname.startsWith('/admin') && pathname !== '/admin/login') {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
     return NextResponse.redirect(loginUrl)
   }
 
-  // Authenticated user trying to visit login page → redirect to admin
+  // Already logged in → don't show login page, go to admin
   if (user && pathname === '/admin/login') {
     const adminUrl = request.nextUrl.clone()
     adminUrl.pathname = '/admin'
@@ -48,8 +48,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    // Match all admin routes
-    '/admin/:path*',
-  ],
+  matcher: ['/admin/:path*'],
 }
