@@ -69,25 +69,39 @@ export default function KnowledgeBasePage() {
     setUploadedFile(file)
     setIsExtracting(true)
 
-    try {
-      let text = ''
+    const titleFromFile = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
 
+    try {
+      // Primary: n8n server-side extraction (better quality, feeds embedding pipeline)
+      const n8nBase = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL
+      if (n8nBase) {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('filename', file.name)
+        const res = await fetch(`${n8nBase}/relaypay-kb-extract`, { method: 'POST', body: fd })
+        if (res.ok) {
+          const { text } = await res.json()
+          setForm((prev) => ({
+            ...prev,
+            title: prev.title || titleFromFile,
+            content: text.trim(),
+          }))
+          return
+        }
+      }
+
+      // Fallback: client-side extraction (pdfjs-dist / mammoth)
+      let text = ''
       if (file.type === 'application/pdf') {
-        // Dynamically import pdfjs to avoid SSR issues
         const pdfjsLib = await import('pdfjs-dist')
         pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-
         const arrayBuffer = await file.arrayBuffer()
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
         const pages: string[] = []
-
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i)
           const textContent = await page.getTextContent()
-          const pageText = textContent.items
-            .map((item: any) => ('str' in item ? item.str : ''))
-            .join(' ')
-          pages.push(pageText)
+          pages.push(textContent.items.map((item: any) => ('str' in item ? item.str : '')).join(' '))
         }
         text = pages.join('\n\n')
       } else if (
@@ -98,19 +112,15 @@ export default function KnowledgeBasePage() {
         const arrayBuffer = await file.arrayBuffer()
         const result = await mammoth.extractRawText({ arrayBuffer })
         text = result.value
-      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        text = await file.text()
       } else {
         text = await file.text()
       }
 
-      // Auto-fill title from filename if empty
-      if (!form.title) {
-        const titleFromFile = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
-        setForm((prev) => ({ ...prev, title: titleFromFile, content: text.trim() }))
-      } else {
-        setForm((prev) => ({ ...prev, content: text.trim() }))
-      }
+      setForm((prev) => ({
+        ...prev,
+        title: prev.title || titleFromFile,
+        content: text.trim(),
+      }))
     } catch (err) {
       console.error('File extraction failed:', err)
       alert('Could not extract text from this file. Please paste the content manually.')
