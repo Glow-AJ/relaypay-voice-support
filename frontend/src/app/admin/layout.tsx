@@ -32,6 +32,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.refresh()
   }
 
+  // Login page renders without sidebar — it has its own centered layout
+  if (pathname === '/admin/login') {
+    return <>{children}</>
+  }
+
   return (
     <div className="flex h-screen" style={{ backgroundColor: '#F7F8FA' }}>
       {/* Sidebar */}
