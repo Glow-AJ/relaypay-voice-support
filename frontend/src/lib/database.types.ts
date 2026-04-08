@@ -77,6 +77,11 @@ export interface Database {
           content: string
           category: string
           source: string | null
+          source_type: 'file' | 'url'
+          file_name: string | null
+          file_hash: string | null
+          embedding_status: 'pending' | 'processing' | 'complete' | 'failed'
+          chunk_count: number
           is_active: boolean
           created_at: string
           updated_at: string
@@ -84,9 +89,14 @@ export interface Database {
         Insert: {
           id?: string
           title: string
-          content: string
+          content?: string
           category: string
           source?: string | null
+          source_type?: 'file' | 'url'
+          file_name?: string | null
+          file_hash?: string | null
+          embedding_status?: 'pending' | 'processing' | 'complete' | 'failed'
+          chunk_count?: number
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -97,6 +107,11 @@ export interface Database {
           content?: string
           category?: string
           source?: string | null
+          source_type?: 'file' | 'url'
+          file_name?: string | null
+          file_hash?: string | null
+          embedding_status?: 'pending' | 'processing' | 'complete' | 'failed'
+          chunk_count?: number
           is_active?: boolean
           updated_at?: string
         }
@@ -107,18 +122,24 @@ export interface Database {
           id: string
           knowledge_base_id: string
           embedding: number[] | null
+          chunk_text: string | null
+          chunk_index: number
           created_at: string
         }
         Insert: {
           id?: string
           knowledge_base_id: string
           embedding?: number[] | null
+          chunk_text?: string | null
+          chunk_index?: number
           created_at?: string
         }
         Update: {
           id?: string
           knowledge_base_id?: string
           embedding?: number[] | null
+          chunk_text?: string | null
+          chunk_index?: number
         }
         Relationships: []
       }
@@ -252,6 +273,23 @@ export interface Database {
           content: string
           category: string
           similarity: number
+        }[]
+      }
+      hybrid_search_knowledge: {
+        Args: {
+          query_embedding: number[]
+          query_text: string
+          match_threshold?: number
+          match_count?: number
+        }
+        Returns: {
+          id: string
+          title: string
+          content: string
+          chunk_text: string
+          category: string
+          similarity: number
+          rrf_score: number
         }[]
       }
     }
