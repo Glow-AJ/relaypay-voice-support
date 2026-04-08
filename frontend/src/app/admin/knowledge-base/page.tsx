@@ -572,7 +572,7 @@ export default function KnowledgeBasePage() {
                 {/* Title */}
                 <div>
                   <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>
-                    Title <span style={{ color: '#9CA3AF' }}>(auto-filled from file/page)</span>
+                    Title{sourceTab === 'file' && <span style={{ color: '#9CA3AF' }}> (auto-filled from filename)</span>}
                   </label>
                   <input
                     value={titleInput}
@@ -586,16 +586,17 @@ export default function KnowledgeBasePage() {
                 {/* Category */}
                 <div>
                   <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Category</label>
-                  <select
+                  <input
+                    list="category-suggestions"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                    placeholder="e.g. fees, onboarding, partnerships..."
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[#29ABE2]"
                     style={{ borderColor: '#E5E7EB', color: '#111827' }}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                    ))}
-                  </select>
+                  />
+                  <datalist id="category-suggestions">
+                    {CATEGORIES.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
 
                 {/* Actions */}
