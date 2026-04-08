@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Loader2, Upload, FileText, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 import type { Database } from '@/lib/database.types'
 
@@ -75,18 +76,22 @@ export default function KnowledgeBasePage() {
       // Primary: n8n server-side extraction (better quality, feeds embedding pipeline)
       const n8nBase = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL
       if (n8nBase) {
-        const fd = new FormData()
-        fd.append('file', file)
-        fd.append('filename', file.name)
-        const res = await fetch(`${n8nBase}/relaypay-kb-extract`, { method: 'POST', body: fd })
-        if (res.ok) {
-          const { text } = await res.json()
-          setForm((prev) => ({
-            ...prev,
-            title: prev.title || titleFromFile,
-            content: text.trim(),
-          }))
-          return
+        try {
+          const fd = new FormData()
+          fd.append('file', file)
+          fd.append('filename', file.name)
+          const res = await fetch(`${n8nBase}/relaypay-kb-extract`, { method: 'POST', body: fd })
+          if (res.ok) {
+            const { text } = await res.json()
+            setForm((prev) => ({
+              ...prev,
+              title: prev.title || titleFromFile,
+              content: text.trim(),
+            }))
+            return
+          }
+        } catch {
+          // n8n endpoint not yet live — fall through to client-side extraction
         }
       }
 
@@ -123,7 +128,7 @@ export default function KnowledgeBasePage() {
       }))
     } catch (err) {
       console.error('File extraction failed:', err)
-      alert('Could not extract text from this file. Please paste the content manually.')
+      toast.error('Could not extract text from this file. Please paste the content manually.')
       setInputMode('type')
     } finally {
       setIsExtracting(false)
