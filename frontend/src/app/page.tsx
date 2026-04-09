@@ -9,7 +9,7 @@ import { VoiceButton, VoiceStatus } from '@/components/chat/VoiceButton'
 import { TranscriptDisplay } from '@/components/chat/TranscriptDisplay'
 import { MessageThread } from '@/components/chat/MessageThread'
 import { TextInput } from '@/components/chat/TextInput'
-import { EscalationModal, EscalationFormData } from '@/components/chat/EscalationModal'
+import { EscalationModal, EscalationFormData, BookingResult } from '@/components/chat/EscalationModal'
 import type { Database } from '@/lib/database.types'
 
 type Message = Database['public']['Tables']['messages']['Row']
@@ -30,7 +30,7 @@ export default function SupportPage() {
   const [sessionId] = useState(() => getOrCreateSessionId())
   const [isSending, setIsSending] = useState(false)
   const [showEscalation, setShowEscalation] = useState(false)
-  const [escalationReason, setEscalationReason] = useState('')
+  const [escalationMessage, setEscalationMessage] = useState('')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [finalTranscript, setFinalTranscript] = useState('')
   const [agentSubtitle, setAgentSubtitle] = useState('')
@@ -167,7 +167,7 @@ export default function SupportPage() {
       const data = await response.json()
 
       if (data.action === 'escalated') {
-        setEscalationReason(data.escalation_reason || 'This query requires specialist attention.')
+        setEscalationMessage(data.message || 'A specialist can help you with this. Would you like to schedule a call?')
         setShowEscalation(true)
       }
     } catch (err) {
@@ -198,9 +198,9 @@ export default function SupportPage() {
     }
   }, [voiceStatus, ensureConversation, sessionId])
 
-  // Escalation booking
-  const handleEscalationSubmit = useCallback(async (data: EscalationFormData) => {
-    await fetch(`${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-book-appointment`, {
+  // Escalation booking — returns availability result from n8n
+  const handleEscalationSubmit = useCallback(async (data: EscalationFormData): Promise<BookingResult> => {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-book-appointment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -209,6 +209,9 @@ export default function SupportPage() {
         conversation_id: conversationId,
       }),
     })
+    if (!response.ok) throw new Error('Booking request failed')
+    const result = await response.json()
+    return result as BookingResult
   }, [sessionId, conversationId])
 
   return (
@@ -284,7 +287,7 @@ export default function SupportPage() {
         isOpen={showEscalation}
         onClose={() => setShowEscalation(false)}
         onSubmit={handleEscalationSubmit}
-        reason={escalationReason}
+        aiMessage={escalationMessage}
       />
     </div>
   )
