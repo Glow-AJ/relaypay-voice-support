@@ -83,6 +83,7 @@ export interface Database {
           embedding_status: 'pending' | 'processing' | 'complete' | 'failed' | 'duplicate'
           chunk_count: number
           is_active: boolean
+          error_details: string | null
           created_at: string
           updated_at: string
         }
@@ -98,6 +99,7 @@ export interface Database {
           embedding_status?: 'pending' | 'processing' | 'complete' | 'failed'
           chunk_count?: number
           is_active?: boolean
+          error_details?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -113,6 +115,7 @@ export interface Database {
           embedding_status?: 'pending' | 'processing' | 'complete' | 'failed'
           chunk_count?: number
           is_active?: boolean
+          error_details?: string | null
           updated_at?: string
         }
         Relationships: []
