@@ -18,6 +18,25 @@ type EmbeddingStatus = 'pending' | 'processing' | 'complete' | 'failed' | 'dupli
 const CATEGORIES = ['fees', 'onboarding', 'payouts', 'invoicing', 'compliance', 'general', 'troubleshooting']
 const N8N_BASE = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ?? ''
 
+// Strip tracking/session params that don't change page content so the stored
+// source URL always matches n8n's normalized search — regardless of how the
+// admin copies the URL (with or without ?pvs=143, utm_*, etc.)
+function normalizeUrl(raw: string): string {
+  try {
+    const u = new URL(raw.trim())
+    const tracking = ['pvs', 'utm_source', 'utm_medium', 'utm_campaign',
+      'utm_content', 'utm_term', 'ref', 'fbclid', 'gclid', '_ga', 'mc_eid', 'mc_cid']
+    tracking.forEach(p => u.searchParams.delete(p))
+    if ([...u.searchParams].length === 0) u.search = ''
+    u.hash = ''
+    u.hostname = u.hostname.toLowerCase()
+    if (u.pathname !== '/' && u.pathname.endsWith('/')) u.pathname = u.pathname.slice(0, -1)
+    return u.href
+  } catch {
+    return raw.trim()
+  }
+}
+
 export default function KnowledgeBasePage() {
   const [entries, setEntries] = useState<KBEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -169,9 +188,11 @@ export default function KnowledgeBasePage() {
     if (!urlInput.trim()) return
     setIsIngesting(true)
     try {
-      const title = titleInput.trim() || urlInput.trim()
+      const normalized = normalizeUrl(urlInput)
+      const title = titleInput.trim() || normalized
 
-      // 1. Create the KB row
+      // 1. Create the KB row — store the normalized URL so it always matches
+      //    what n8n searches for in step 8 (source URL cleanup check)
       const { data: entry, error } = await supabase
         .from('knowledge_base')
         .insert({
@@ -179,7 +200,7 @@ export default function KnowledgeBasePage() {
           content: '',
           category: category || 'general',
           source_type: 'url',
-          source: urlInput.trim(),
+          source: normalized,
           embedding_status: 'pending',
           is_active: true,
         })
@@ -195,11 +216,11 @@ export default function KnowledgeBasePage() {
       resetForm()
       toast.info('Processing in background — watch the status badge')
 
-      // 2. Fire n8n
+      // 2. Fire n8n — pass the same normalized URL
       fetch(`${N8N_BASE}/relaypay-kb-ingest-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlInput.trim(), title, category: category || 'general', entry_id: entry.id }),
+        body: JSON.stringify({ url: normalized, title, category: category || 'general', entry_id: entry.id }),
       }).catch(() => {})
     } catch (err) {
       console.error('Ingest URL error:', err)
