@@ -125,7 +125,7 @@ export interface Database {
           id: string
           knowledge_base_id: string
           embedding: number[] | null
-          chunk_text: string | null
+          content: string | null
           chunk_index: number
           metadata: Json
           created_at: string
@@ -134,7 +134,7 @@ export interface Database {
           id?: string
           knowledge_base_id: string
           embedding?: number[] | null
-          chunk_text?: string | null
+          content?: string | null
           chunk_index?: number
           created_at?: string
         }
@@ -142,7 +142,7 @@ export interface Database {
           id?: string
           knowledge_base_id?: string
           embedding?: number[] | null
-          chunk_text?: string | null
+          content?: string | null
           chunk_index?: number
         }
         Relationships: []
