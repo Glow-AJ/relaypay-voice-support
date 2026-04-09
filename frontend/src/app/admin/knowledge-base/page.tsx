@@ -112,71 +112,80 @@ export default function KnowledgeBasePage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // ─── File ingestion → n8n ────────────────────────────────────────────────
+  // ─── File ingestion → create row in Supabase, then fire n8n ────────────
   async function handleIngestFile() {
     if (!uploadFile) return
     setIsIngesting(true)
     try {
+      const title = titleInput.trim() || uploadFile.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ')
+
+      // 1. Create the KB row — frontend owns this, gets UUID back immediately
+      const { data: entry, error } = await supabase
+        .from('knowledge_base')
+        .insert({
+          title,
+          content: '',
+          category: category || 'general',
+          source_type: 'file',
+          file_name: uploadFile.name,
+          embedding_status: 'pending',
+          is_active: true,
+        })
+        .select('id')
+        .single()
+
+      if (error || !entry) throw new Error(error?.message ?? 'Failed to create KB entry')
+      setIngestingId(entry.id)
+
+      // 2. Fire n8n — responds immediately, processes in background
       const fd = new FormData()
       fd.append('file', uploadFile)
-      fd.append('title', titleInput.trim() || uploadFile.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '))
-      fd.append('category', category)
-
-      const res = await fetch(`${N8N_BASE}/relaypay-kb-ingest-file`, {
-        method: 'POST',
-        body: fd,
-      })
-
-      if (!res.ok) throw new Error(`n8n returned ${res.status}`)
-      const data = await res.json()
-
-      if (data.status === 'unchanged') {
-        toast.info(`"${data.title}" is already up to date — no changes detected`)
-        setIsIngesting(false)
-        setShowForm(false)
-        resetForm()
-        return
-      }
-
-      // n8n has accepted the file; wait for real-time status update
-      if (data.entry_id) setIngestingId(data.entry_id)
+      fd.append('title', title)
+      fd.append('category', category || 'general')
+      fd.append('entry_id', entry.id)
+      fetch(`${N8N_BASE}/relaypay-kb-ingest-file`, { method: 'POST', body: fd })
+        .catch(() => {}) // fire and forget — realtime handles outcome
     } catch (err) {
       console.error('Ingest file error:', err)
-      toast.error('Could not send file to n8n. Is the workflow live?')
+      toast.error('Could not create KB entry. Check Supabase connection.')
       setIsIngesting(false)
     }
   }
 
-  // ─── URL ingestion → n8n ─────────────────────────────────────────────────
+  // ─── URL ingestion → create row in Supabase, then fire n8n ─────────────
   async function handleIngestUrl() {
     if (!urlInput.trim()) return
     setIsIngesting(true)
     try {
-      const res = await fetch(`${N8N_BASE}/relaypay-kb-ingest-url`, {
+      const title = titleInput.trim() || urlInput.trim()
+
+      // 1. Create the KB row
+      const { data: entry, error } = await supabase
+        .from('knowledge_base')
+        .insert({
+          title,
+          content: '',
+          category: category || 'general',
+          source_type: 'url',
+          source: urlInput.trim(),
+          embedding_status: 'pending',
+          is_active: true,
+        })
+        .select('id')
+        .single()
+
+      if (error || !entry) throw new Error(error?.message ?? 'Failed to create KB entry')
+      setIngestingId(entry.id)
+
+      // 2. Fire n8n
+      fetch(`${N8N_BASE}/relaypay-kb-ingest-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: urlInput.trim(),
-          title: titleInput.trim() || '',
-          category,
-        }),
-      })
-
-      if (!res.ok) throw new Error(`n8n returned ${res.status}`)
-      const data = await res.json()
-
-      if (data.status === 'unchanged') {
-        toast.info('This URL has not changed since last import')
-        setIsIngesting(false)
-        setShowForm(false)
-        resetForm()
-        return
-      }
-
-      if (data.entry_id) setIngestingId(data.entry_id)
+        body: JSON.stringify({ url: urlInput.trim(), title, category: category || 'general', entry_id: entry.id }),
+      }).catch(() => {})
     } catch (err) {
       console.error('Ingest URL error:', err)
-      toast.error('Could not send URL to n8n. Is the workflow live?')
+      toast.error('Could not create KB entry. Check Supabase connection.')
       setIsIngesting(false)
     }
   }
@@ -184,20 +193,14 @@ export default function KnowledgeBasePage() {
   // ─── Re-sync URL entry ───────────────────────────────────────────────────
   async function handleResync(entry: KBEntry) {
     if (!entry.source) return
+    // Reset status so realtime subscription picks up the change
+    await supabase.from('knowledge_base').update({ embedding_status: 'pending' }).eq('id', entry.id)
     toast.info(`Re-syncing "${entry.title}"...`)
-    try {
-      const res = await fetch(`${N8N_BASE}/relaypay-kb-ingest-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: entry.source, title: entry.title, category: entry.category }),
-      })
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      if (data.status === 'unchanged') toast.info('No changes detected at this URL')
-      else if (data.entry_id) setIngestingId(data.entry_id)
-    } catch {
-      toast.error('Re-sync failed. Check n8n workflow.')
-    }
+    fetch(`${N8N_BASE}/relaypay-kb-ingest-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: entry.source, title: entry.title, category: entry.category, entry_id: entry.id }),
+    }).catch(() => toast.error('Re-sync failed. Check n8n workflow.'))
   }
 
   // ─── Toggle active ───────────────────────────────────────────────────────
