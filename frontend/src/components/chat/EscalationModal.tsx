@@ -15,6 +15,7 @@ export interface BookingResult {
   available: boolean
   display_time?: string
   alternatives?: string[]
+  calendar_link?: string
 }
 
 interface EscalationModalProps {
@@ -103,25 +104,18 @@ export function EscalationModal({ isOpen, onClose, onSubmit, aiMessage }: Escala
             </button>
           </div>
           <div className="px-6 py-5 flex flex-col gap-3">
-            {bookingResult.alternatives && bookingResult.alternatives.length > 0 ? (
-              <>
-                {bookingResult.alternatives.map((alt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setBookingResult(null)}
-                    className="w-full rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-left text-sm text-[#111827] hover:bg-[#F0F9FF] hover:border-[#29ABE2] transition-colors"
-                  >
-                    {alt}
-                  </button>
-                ))}
-                <p className="text-xs text-[#6B7280] text-center">
-                  Select a time above to go back and adjust your preferred time.
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-[#6B7280] text-center py-2">
-                No alternative slots available. Please contact us at support@relaypay.io.
-              </p>
+            <p className="text-sm text-[#6B7280] text-center py-2">
+              Use the button below to pick any available time from our live calendar.
+            </p>
+            {bookingResult.calendar_link && (
+              <a
+                href={bookingResult.calendar_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full rounded-lg bg-[#1B3A7A] py-2.5 text-center text-sm font-medium text-white hover:bg-[#162F63] transition-colors block"
+              >
+                View Available Times
+              </a>
             )}
             <button
               onClick={onClose}
