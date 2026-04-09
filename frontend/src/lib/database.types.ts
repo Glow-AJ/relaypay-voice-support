@@ -124,6 +124,7 @@ export interface Database {
           embedding: number[] | null
           chunk_text: string | null
           chunk_index: number
+          metadata: Json
           created_at: string
         }
         Insert: {

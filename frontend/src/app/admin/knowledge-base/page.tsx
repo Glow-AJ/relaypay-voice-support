@@ -495,7 +495,7 @@ export default function KnowledgeBasePage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={(e) => { if (e.target === e.currentTarget && !isIngesting) { setShowForm(false); resetForm() } }}
         >
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
               <h2 className="text-sm font-semibold" style={{ color: '#111827' }}>Add Knowledge Article</h2>
