@@ -80,7 +80,7 @@ export interface Database {
           source_type: 'file' | 'url'
           file_name: string | null
           file_hash: string | null
-          embedding_status: 'pending' | 'processing' | 'complete' | 'failed'
+          embedding_status: 'pending' | 'processing' | 'complete' | 'failed' | 'duplicate'
           chunk_count: number
           is_active: boolean
           created_at: string

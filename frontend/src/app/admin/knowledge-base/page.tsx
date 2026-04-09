@@ -13,7 +13,7 @@ import type { Database } from '@/lib/database.types'
 
 type KBEntry = Database['public']['Tables']['knowledge_base']['Row']
 type SourceTab = 'file' | 'url'
-type EmbeddingStatus = 'pending' | 'processing' | 'complete' | 'failed'
+type EmbeddingStatus = 'pending' | 'processing' | 'complete' | 'failed' | 'duplicate'
 
 const CATEGORIES = ['fees', 'onboarding', 'payouts', 'invoicing', 'compliance', 'general', 'troubleshooting']
 const N8N_BASE = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ?? ''
@@ -70,15 +70,21 @@ export default function KnowledgeBasePage() {
 
           if (updated.embedding_status === 'complete' && updated.id === ingestingId) {
             toast.success(`"${updated.title}" embedded — ${updated.chunk_count} chunks`)
-            setIsIngesting(false)
             setIngestingId(null)
-            setShowForm(false)
-            resetForm()
           }
           if (updated.embedding_status === 'failed' && updated.id === ingestingId) {
             toast.error(`Embedding failed for "${updated.title}"`)
-            setIsIngesting(false)
             setIngestingId(null)
+          }
+          if (updated.embedding_status === 'duplicate') {
+            toast.info(`"${updated.title}" already exists in the knowledge base — removing duplicate`)
+            setIngestingId(null)
+            // Auto-delete the duplicate row after 3 seconds
+            setTimeout(async () => {
+              await supabase.from('knowledge_base').delete().eq('id', updated.id)
+              setEntries((prev) => prev.filter((e) => e.id !== updated.id))
+              if (previewEntry?.id === updated.id) setPreviewEntry(null)
+            }, 3000)
           }
         }
       )
@@ -135,7 +141,13 @@ export default function KnowledgeBasePage() {
         .single()
 
       if (error || !entry) throw new Error(error?.message ?? 'Failed to create KB entry')
+
+      // Close modal immediately — table shows live progress via realtime
       setIngestingId(entry.id)
+      setIsIngesting(false)
+      setShowForm(false)
+      resetForm()
+      toast.info('Processing in background — watch the status badge')
 
       // 2. Fire n8n — responds immediately, processes in background
       const fd = new FormData()
@@ -144,7 +156,7 @@ export default function KnowledgeBasePage() {
       fd.append('category', category || 'general')
       fd.append('entry_id', entry.id)
       fetch(`${N8N_BASE}/relaypay-kb-ingest-file`, { method: 'POST', body: fd })
-        .catch(() => {}) // fire and forget — realtime handles outcome
+        .catch(() => {})
     } catch (err) {
       console.error('Ingest file error:', err)
       toast.error('Could not create KB entry. Check Supabase connection.')
@@ -175,7 +187,13 @@ export default function KnowledgeBasePage() {
         .single()
 
       if (error || !entry) throw new Error(error?.message ?? 'Failed to create KB entry')
+
+      // Close modal immediately
       setIngestingId(entry.id)
+      setIsIngesting(false)
+      setShowForm(false)
+      resetForm()
+      toast.info('Processing in background — watch the status badge')
 
       // 2. Fire n8n
       fetch(`${N8N_BASE}/relaypay-kb-ingest-url`, {
@@ -248,6 +266,12 @@ export default function KnowledgeBasePage() {
       return (
         <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: '#DC2626' }}>
           <AlertCircle size={11} /> failed
+        </span>
+      )
+    if (status === 'duplicate')
+      return (
+        <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: '#D97706' }}>
+          <AlertCircle size={11} /> duplicate
         </span>
       )
     return (
