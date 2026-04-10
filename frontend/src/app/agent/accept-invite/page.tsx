@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 
 export default function AcceptInvitePage() {
   const router = useRouter()
@@ -13,12 +13,42 @@ export default function AcceptInvitePage() {
   const [showPw, setShowPw] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  
+  const [isReady, setIsReady] = useState(false)
   const [agentEmail, setAgentEmail] = useState('')
+  const [invalidInvite, setInvalidInvite] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) setAgentEmail(session.user.email)
+    async function verifySession(session: any) {
+      if (!session?.user?.email) return
+      
+      // Check if this user actually has a pending invite in the agents table
+      const { data: agent } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('email', session.user.email)
+        .single()
+
+      if (!agent || agent.invite_status !== 'pending') {
+        setAgentEmail(session.user.email)
+        setInvalidInvite(true)
+        setIsReady(true)
+      } else {
+        setAgentEmail(session.user.email)
+        setIsReady(true)
+      }
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) await verifySession(session)
     })
+
+    // Also get current session in case it resolved before the subscription
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) verifySession(session)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,11 +72,11 @@ export default function AcceptInvitePage() {
     }
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
+    if (user && user.email) {
       await supabase
         .from('agents')
         .update({ user_id: user.id, invite_status: 'accepted' })
-        .eq('email', user.email!)
+        .eq('email', user.email)
     }
 
     router.push('/agent')
@@ -59,43 +89,74 @@ export default function AcceptInvitePage() {
           <RelayPayLogo size="lg" />
         </div>
         <div className="rounded-2xl border bg-white px-8 py-8 shadow-sm" style={{ borderColor: '#E5E7EB' }}>
-          <div className="mb-6">
-            <h1 className="text-base font-semibold" style={{ color: '#111827' }}>Set Your Password</h1>
-            <p className="mt-0.5 text-xs" style={{ color: '#6B7280' }}>
-              Welcome! Set a password to activate your agent account
-              {agentEmail ? ` for ${agentEmail}` : ''}.
-            </p>
-          </div>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <PasswordField
-              label="New Password"
-              value={password}
-              onChange={setPassword}
-              show={showPw}
-              onToggle={() => setShowPw((p) => !p)}
-            />
-            <PasswordField
-              label="Confirm Password"
-              value={confirm}
-              onChange={setConfirm}
-              show={showPw}
-              onToggle={() => setShowPw((p) => !p)}
-            />
-            {error && (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs" style={{ color: '#DC2626' }}>
-                {error}
+          {invalidInvite ? (
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertCircle size={24} className="text-red-600" />
+              </div>
+              <h1 className="text-base font-semibold text-gray-900">Invalid Invite Session</h1>
+              <p className="mt-2 text-sm text-gray-600" style={{ color: '#4B5563' }}>
+                You are currently logged in as <strong>{agentEmail}</strong>, but this account does not have a pending agent invite.
               </p>
-            )}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: '#1B3A7A' }}
-            >
-              {isLoading && <Loader2 size={14} className="animate-spin" />}
-              {isLoading ? 'Activating...' : 'Activate Account'}
-            </button>
-          </form>
+              <p className="mt-4 text-xs p-3 rounded-lg border text-left" style={{ backgroundColor: '#F9FAFB', borderColor: '#E5E7EB', color: '#6B7280' }}>
+                If you are an Admin testing the invite flow, please open the invite link in an <strong>Incognito or Private Browsing window</strong>.
+              </p>
+              <button
+                onClick={() => {
+                  supabase.auth.signOut().then(() => window.location.reload())
+                }}
+                className="mt-6 w-full rounded-lg border py-2.5 text-sm font-medium hover:bg-gray-50 transition-colors"
+                style={{ borderColor: '#E5E7EB', color: '#374151' }}
+              >
+                Log out and try again
+              </button>
+            </div>
+          ) : !isReady ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin mb-4" style={{ color: '#9CA3AF' }} />
+              <p className="text-sm" style={{ color: '#6B7280' }}>Verifying invite session...</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-6">
+                <h1 className="text-base font-semibold" style={{ color: '#111827' }}>Set Your Password</h1>
+                <p className="mt-0.5 text-xs" style={{ color: '#6B7280' }}>
+                  Welcome! Set a password to activate your agent account
+                  {agentEmail ? ` for ${agentEmail}` : ''}.
+                </p>
+              </div>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <PasswordField
+                  label="New Password"
+                  value={password}
+                  onChange={setPassword}
+                  show={showPw}
+                  onToggle={() => setShowPw((p) => !p)}
+                />
+                <PasswordField
+                  label="Confirm Password"
+                  value={confirm}
+                  onChange={setConfirm}
+                  show={showPw}
+                  onToggle={() => setShowPw((p) => !p)}
+                />
+                {error && (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs" style={{ color: '#DC2626' }}>
+                    {error}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white hover:bg-[#162F63] transition-colors disabled:opacity-60"
+                  style={{ backgroundColor: '#1B3A7A' }}
+                >
+                  {isLoading && <Loader2 size={14} className="animate-spin" />}
+                  {isLoading ? 'Activating...' : 'Activate Account'}
+                </button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     </div>
