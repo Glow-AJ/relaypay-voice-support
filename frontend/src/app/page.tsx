@@ -64,14 +64,21 @@ export default function SupportPage() {
       setVoiceStatus('error')
     }
     const onMessage = (msg: any) => {
+      // Defensively strictly enforce strings so we don't crash the React tree with object rendering
       if (msg.type === 'transcript') {
-        if (msg.transcriptType === 'partial') setPartialTranscript(msg.transcript)
+        const text = typeof msg.transcript === 'string' ? msg.transcript 
+                    : (msg.transcript?.text || msg.transcript?.content || '');
+        if (msg.transcriptType === 'partial') setPartialTranscript(text)
         else if (msg.transcriptType === 'final') {
-          setFinalTranscript(msg.transcript)
+          setFinalTranscript(text)
           setPartialTranscript('')
         }
       }
-      if (msg.type === 'model-output') setAgentSubtitle(msg.output || '')
+      if (msg.type === 'model-output') {
+        const text = typeof msg.output === 'string' ? msg.output 
+                    : (msg.output?.content || msg.output?.text || '');
+        setAgentSubtitle(text)
+      }
     }
 
     vapi.on('call-start', onCallStart)
