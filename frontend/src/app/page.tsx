@@ -7,7 +7,6 @@ import { generateSessionId } from '@/lib/utils'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
 import { VapiErrorBoundary } from '@/components/VapiErrorBoundary'
 import { VoiceButton, VoiceStatus } from '@/components/chat/VoiceButton'
-import { TranscriptDisplay } from '@/components/chat/TranscriptDisplay'
 import { MessageThread } from '@/components/chat/MessageThread'
 import { TextInput } from '@/components/chat/TextInput'
 import { EscalationModal, EscalationFormData, BookingResult } from '@/components/chat/EscalationModal'
@@ -322,25 +321,17 @@ export default function SupportPage() {
           </div>
         )}
 
-        {/* Messages — filter out system/tool_calls roles (never display those) */}
+        {/* Messages — filters out system/tool_calls roles, handles both DB history and Live Vapi transcription */}
         <div className="flex-1 overflow-y-auto">
           <MessageThread
             messages={messages.filter(m => m.role === 'user' || m.role === 'assistant')}
             isLoading={isSending}
             channel={conversationChannel}
+            partialTranscript={partialTranscript}
+            finalTranscript={finalTranscript}
+            agentSpeaking={agentSubtitle}
           />
         </div>
-
-        {/* Live transcript / subtitle */}
-        {(partialTranscript || finalTranscript || agentSubtitle) && (
-          <div className="mt-3">
-            <TranscriptDisplay
-              partial={partialTranscript}
-              final={finalTranscript}
-              agentSpeaking={agentSubtitle}
-            />
-          </div>
-        )}
 
         {/* Controls */}
         <VapiErrorBoundary>
