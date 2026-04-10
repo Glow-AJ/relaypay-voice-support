@@ -19,33 +19,60 @@ export default function AcceptInvitePage() {
   const [invalidInvite, setInvalidInvite] = useState(false)
 
   useEffect(() => {
-    async function verifySession(session: any) {
-      if (!session?.user?.email) return
-      
-      // Check if this user actually has a pending invite in the agents table
-      const { data: agent } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('email', session.user.email)
-        .single()
+    let checked = false
 
-      if (!agent || agent.invite_status !== 'pending') {
-        setAgentEmail(session.user.email)
+    async function verifySession(session: any) {
+      if (checked) return
+      checked = true
+      
+      if (!session?.user?.email) {
         setInvalidInvite(true)
         setIsReady(true)
-      } else {
-        setAgentEmail(session.user.email)
+        return
+      }
+      
+      try {
+        const { data: agent, error: fetchError } = await supabase
+          .from('agents')
+          .select('*')
+          .eq('email', session.user.email)
+          .single()
+
+        if (fetchError || !agent || agent.invite_status !== 'pending') {
+          setAgentEmail(session.user.email)
+          setInvalidInvite(true)
+        } else {
+          setAgentEmail(session.user.email)
+        }
+      } catch (err) {
+        console.error('Verify failed:', err)
+        setInvalidInvite(true)
+      } finally {
         setIsReady(true)
       }
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) await verifySession(session)
+    // Direct check first
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        verifySession(session)
+      } else {
+        // Give it a tiny bit of time for the auth state to settle (important for redirections)
+        setTimeout(() => {
+          if (!checked) {
+            setInvalidInvite(true)
+            setIsReady(true)
+          }
+        }, 1500)
+      }
     })
 
-    // Also get current session in case it resolved before the subscription
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) verifySession(session)
+      else if (event === 'SIGNED_OUT') {
+        setInvalidInvite(true)
+        setIsReady(true)
+      }
     })
 
     return () => subscription.unsubscribe()

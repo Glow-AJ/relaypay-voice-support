@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Plus, Trash2, ToggleLeft, ToggleRight, UserCircle, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import { validateEmail } from '@/lib/utils'
 import type { Database } from '@/lib/database.types'
 
@@ -66,12 +67,23 @@ export default function AgentsPage() {
 
   async function handleResendInvite(agent: Agent) {
     setResendingId(agent.id)
-    await fetch('/api/admin/resend-invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: agent.email }),
-    })
-    setResendingId(null)
+    try {
+      const res = await fetch('/api/admin/resend-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: agent.email }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('Invite re-sent successfully!')
+      } else {
+        toast.error(data.error || 'Failed to resend invite.')
+      }
+    } catch (err) {
+      toast.error('Network error. Failed to resend invite.')
+    } finally {
+      setResendingId(null)
+    }
   }
 
   return (
