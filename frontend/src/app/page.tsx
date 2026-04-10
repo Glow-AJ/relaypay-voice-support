@@ -76,7 +76,7 @@ export default function SupportPage() {
     async function loadConversation() {
       const { data: conv } = await supabase
         .from('conversations')
-        .select('id')
+        .select('id, channel')
         .eq('session_id', sessionId)
         .eq('status', 'active')
         .maybeSingle()
