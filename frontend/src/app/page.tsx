@@ -57,7 +57,11 @@ export default function SupportPage() {
     vapi.on('speech-end', () => setVoiceStatus('listening'))
     vapi.on('error', (e: any) => {
       console.error('[VAPI error]', e)
+      // Gracefully handle call end / timeout — don't crash the page
       setVoiceStatus('error')
+      setPartialTranscript('')
+      setFinalTranscript('')
+      setAgentSubtitle('')
     })
 
     vapi.on('message', (msg: any) => {
@@ -141,20 +145,6 @@ export default function SupportPage() {
     try {
       const convId = await ensureConversation('text')
 
-      // Optimistic UI
-      const tempMsg: Message = {
-        id: `temp_${Date.now()}`,
-        conversation_id: convId,
-        role: 'user',
-        content,
-        audio_url: null,
-        transcript_confidence: null,
-        intent: null,
-        action_taken: null,
-        created_at: new Date().toISOString(),
-      }
-      setMessages((prev) => [...prev, tempMsg])
-
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-text`,
         {
@@ -182,6 +172,18 @@ export default function SupportPage() {
       setIsSending(false)
     }
   }, [isSending, ensureConversation, sessionId])
+
+  // Start a new conversation session
+  const handleNewConversation = useCallback(() => {
+    // Stop any active voice call
+    if (vapiRef.current && (voiceStatus === 'listening' || voiceStatus === 'speaking')) {
+      vapiRef.current.stop()
+    }
+    // Clear session from localStorage so a new one is generated on next load
+    localStorage.removeItem('rp_session_id')
+    // Reset all state and reload the page cleanly
+    window.location.reload()
+  }, [voiceStatus])
 
   // Toggle voice call
   const handleVoiceToggle = useCallback(async () => {
@@ -225,9 +227,20 @@ export default function SupportPage() {
       {/* Header */}
       <header className="flex shrink-0 items-center justify-between border-b bg-white px-6 py-4" style={{ borderColor: '#E5E7EB' }}>
         <RelayPayLogo size="md" />
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-xs" style={{ color: '#6B7280' }}>Support Online</span>
+        <div className="flex items-center gap-3">
+          {messages.length > 0 && (
+            <button
+              onClick={handleNewConversation}
+              className="text-xs font-medium underline underline-offset-2 transition-colors"
+              style={{ color: '#6B7280' }}
+            >
+              New conversation
+            </button>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-xs" style={{ color: '#6B7280' }}>Support Online</span>
+          </div>
         </div>
       </header>
 
