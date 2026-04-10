@@ -59,36 +59,20 @@ export default function SupportPage() {
     const vapi = vapiInstance
     vapiRef.current = vapi
 
-    // We make sure to remove existing listeners to prevent duplicates on re-mounts
-    vapi.removeAllListeners('call-start')
-    vapi.removeAllListeners('call-end')
-    vapi.removeAllListeners('speech-start')
-    vapi.removeAllListeners('speech-end')
-    vapi.removeAllListeners('error')
-    vapi.removeAllListeners('message')
-
-    vapi.on('call-start', () => setVoiceStatus('listening'))
-    vapi.on('call-end', () => {
+    const onCallStart = () => setVoiceStatus('listening')
+    const onCallEnd = () => {
       setVoiceStatus('idle')
       setPartialTranscript('')
       setFinalTranscript('')
       setAgentSubtitle('')
-    })
-    vapi.on('speech-start', () => setVoiceStatus('speaking'))
-    vapi.on('speech-end', () => setVoiceStatus('listening'))
-    vapi.on('error', (e: any) => {
-      console.error('[VAPI error]', e)
-      // Stop the call to clean up Daily.co connection and dismiss any error overlay
-      try { vapiRef.current?.stop() } catch (_) {}
+    }
+    const onSpeechStart = () => setVoiceStatus('speaking')
+    const onSpeechEnd = () => setVoiceStatus('listening')
+    const onError = (e: any) => {
+      console.error('VAPI Error:', e)
       setVoiceStatus('error')
-      setPartialTranscript('')
-      setFinalTranscript('')
-      setAgentSubtitle('')
-      // Auto-reset to idle so user can retry without a page reload
-      setTimeout(() => setVoiceStatus('idle'), 2000)
-    })
-
-    vapi.on('message', (msg: any) => {
+    }
+    const onMessage = (msg: any) => {
       if (msg.type === 'transcript') {
         if (msg.transcriptType === 'partial') setPartialTranscript(msg.transcript)
         else if (msg.transcriptType === 'final') {
@@ -97,9 +81,23 @@ export default function SupportPage() {
         }
       }
       if (msg.type === 'model-output') setAgentSubtitle(msg.output || '')
-    })
+    }
 
-    return () => { vapi.stop() }
+    vapi.on('call-start', onCallStart)
+    vapi.on('call-end', onCallEnd)
+    vapi.on('speech-start', onSpeechStart)
+    vapi.on('speech-end', onSpeechEnd)
+    vapi.on('error', onError)
+    vapi.on('message', onMessage)
+
+    return () => {
+      vapi.off('call-start', onCallStart)
+      vapi.off('call-end', onCallEnd)
+      vapi.off('speech-start', onSpeechStart)
+      vapi.off('speech-end', onSpeechEnd)
+      vapi.off('error', onError)
+      vapi.off('message', onMessage)
+    }
   }, [])
 
   // Load existing conversation
