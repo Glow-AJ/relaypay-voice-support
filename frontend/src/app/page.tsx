@@ -61,7 +61,8 @@ export default function SupportPage() {
     vapi.on('speech-end', () => setVoiceStatus('listening'))
     vapi.on('error', (e: any) => {
       console.error('[VAPI error]', e)
-      // Gracefully handle call end / timeout — don't crash the page
+      // Stop the call to clean up Daily.co connection and dismiss any error overlay
+      try { vapiRef.current?.stop() } catch (_) {}
       setVoiceStatus('error')
       setPartialTranscript('')
       setFinalTranscript('')
@@ -263,7 +264,7 @@ export default function SupportPage() {
   return (
     <div className="flex h-screen flex-col" style={{ backgroundColor: '#F7F8FA' }}>
       {/* Header */}
-      <header className="flex shrink-0 items-center justify-between border-b bg-white px-6 py-4" style={{ borderColor: '#E5E7EB' }}>
+      <header className="flex shrink-0 items-center justify-between border-b bg-white px-4 py-3 md:px-6 md:py-4" style={{ borderColor: '#E5E7EB' }}>
         <RelayPayLogo size="md" />
         <div className="flex items-center gap-3">
           {messages.length > 0 && (
@@ -296,9 +297,13 @@ export default function SupportPage() {
           </div>
         )}
 
-        {/* Messages */}
+        {/* Messages — filter out system/tool_calls roles (never display those) */}
         <div className="flex-1 overflow-y-auto">
-          <MessageThread messages={messages} isLoading={isSending} channel={conversationChannel} />
+          <MessageThread
+            messages={messages.filter(m => m.role === 'user' || m.role === 'assistant')}
+            isLoading={isSending}
+            channel={conversationChannel}
+          />
         </div>
 
         {/* Live transcript / subtitle */}

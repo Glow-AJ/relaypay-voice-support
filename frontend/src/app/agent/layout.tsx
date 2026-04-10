@@ -1,12 +1,21 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
 import { LogOut } from 'lucide-react'
 
+// Pages that should render without the agent portal header
+const AUTH_PATHS = ['/agent/accept-invite']
+
 export default function AgentLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const router = useRouter()
+
+  // Accept-invite has its own standalone layout
+  if (AUTH_PATHS.some(p => pathname.startsWith(p))) {
+    return <>{children}</>
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()

@@ -95,16 +95,16 @@ export default function AdminDashboard() {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* Page header */}
-      <div className="border-b bg-white px-8 py-5" style={{ borderColor: '#E5E7EB' }}>
+      <div className="border-b bg-white px-4 py-4 md:px-8 md:py-5" style={{ borderColor: '#E5E7EB' }}>
         <h1 className="text-base font-semibold" style={{ color: '#111827' }}>Dashboard</h1>
         <p className="text-xs" style={{ color: '#6B7280' }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
-      <div className="flex-1 px-8 py-6">
+      <div className="flex-1 px-4 py-4 md:px-8 md:py-6">
         {/* Stat cards */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-4">
           {statCards.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="rounded-xl border bg-white p-5" style={{ borderColor: '#E5E7EB' }}>
               <div className="flex items-center justify-between mb-3">

@@ -85,8 +85,8 @@ export default function AgentPage() {
 
   if (!agent) {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm" style={{ color: '#6B7280' }}>
+      <div className="flex flex-1 items-center justify-center px-4">
+        <p className="text-sm text-center" style={{ color: '#6B7280' }}>
           No agent profile found for this account. Contact your administrator.
         </p>
       </div>
@@ -95,9 +95,12 @@ export default function AgentPage() {
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      {/* List panel */}
-      <div className="flex w-1/2 flex-col border-r overflow-hidden" style={{ borderColor: '#E5E7EB' }}>
-        <div className="border-b bg-white px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
+      {/* List panel — full width on mobile when nothing selected */}
+      <div
+        className={`flex flex-col border-r overflow-hidden md:w-1/2 ${selected ? 'hidden md:flex' : 'flex w-full'}`}
+        style={{ borderColor: '#E5E7EB' }}
+      >
+        <div className="border-b bg-white px-4 py-4 md:px-6 md:py-5" style={{ borderColor: '#E5E7EB' }}>
           <h1 className="text-base font-semibold" style={{ color: '#111827' }}>My Escalations</h1>
           <p className="mt-0.5 text-xs" style={{ color: '#6B7280' }}>
             {open} open · {inProgress} in progress · {escalations.length} total
@@ -113,7 +116,7 @@ export default function AgentPage() {
             <button
               key={esc.id}
               onClick={() => setSelected(esc)}
-              className="w-full text-left px-6 py-4 transition-colors hover:bg-[#FAFAFA]"
+              className="w-full text-left px-4 py-4 md:px-6 transition-colors hover:bg-[#FAFAFA]"
               style={{ backgroundColor: selected?.id === esc.id ? '#F5F8FF' : undefined }}
             >
               <div className="flex items-start justify-between gap-2">
@@ -132,67 +135,77 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Detail panel */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* Detail panel — hidden on mobile when nothing selected */}
+      <div className={`flex-1 flex-col overflow-y-auto ${selected ? 'flex' : 'hidden md:flex'}`}>
         {selected ? (
-          <div className="flex flex-col gap-0">
-            <div className="border-b bg-white px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold" style={{ color: '#111827' }}>{selected.user_name}</h2>
-                  <p className="text-xs" style={{ color: '#6B7280' }}>{selected.user_email}</p>
-                </div>
-                <StatusBadge status={selected.status} />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 px-6 py-5">
-              <InfoRow label="Category">
-                <span className="capitalize rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: '#EEF2FF', color: '#1B3A7A' }}>
-                  {selected.category}
-                </span>
-              </InfoRow>
-              <InfoRow label="Reason">
-                <p className="text-xs" style={{ color: '#374151' }}>{selected.reason}</p>
-              </InfoRow>
-              <InfoRow label="Submitted">
-                <p className="text-xs" style={{ color: '#374151' }}>{formatDate(selected.timestamp)}</p>
-              </InfoRow>
-              {selected.call_booked && (
-                <InfoRow label="Call Scheduled">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={12} style={{ color: '#16A34A' }} />
-                    <p className="text-xs" style={{ color: '#374151' }}>
-                      {selected.appointment_time ? formatDate(selected.appointment_time) : 'Booked'}
-                      {selected.appointment_timezone && ` (${selected.appointment_timezone})`}
-                    </p>
+          <>
+            {/* Mobile back button */}
+            <button
+              onClick={() => setSelected(null)}
+              className="flex md:hidden items-center gap-1.5 border-b bg-white px-4 py-3 text-xs font-medium shrink-0"
+              style={{ borderColor: '#E5E7EB', color: '#1B3A7A' }}
+            >
+              ← Back to list
+            </button>
+            <div className="flex flex-col gap-0">
+              <div className="border-b bg-white px-4 py-4 md:px-6 md:py-5" style={{ borderColor: '#E5E7EB' }}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold" style={{ color: '#111827' }}>{selected.user_name}</h2>
+                    <p className="text-xs" style={{ color: '#6B7280' }}>{selected.user_email}</p>
                   </div>
-                </InfoRow>
-              )}
+                  <StatusBadge status={selected.status} />
+                </div>
+              </div>
 
-              {/* Status update */}
-              <div className="rounded-xl border p-4" style={{ borderColor: '#E5E7EB' }}>
-                <p className="mb-3 text-xs font-medium" style={{ color: '#374151' }}>Update Status</p>
-                <div className="flex gap-2">
-                  {STATUS_OPTIONS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => updateStatus(selected.id, s)}
-                      disabled={updating || selected.status === s}
-                      className="rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50"
-                      style={{
-                        backgroundColor: selected.status === s ? '#1B3A7A' : 'white',
-                        color: selected.status === s ? 'white' : '#6B7280',
-                        borderColor: selected.status === s ? '#1B3A7A' : '#E5E7EB',
-                      }}
-                    >
-                      {s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
-                    </button>
-                  ))}
+              <div className="flex flex-col gap-4 px-4 py-4 md:px-6 md:py-5">
+                <InfoRow label="Category">
+                  <span className="capitalize rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: '#EEF2FF', color: '#1B3A7A' }}>
+                    {selected.category}
+                  </span>
+                </InfoRow>
+                <InfoRow label="Reason">
+                  <p className="text-xs" style={{ color: '#374151' }}>{selected.reason}</p>
+                </InfoRow>
+                <InfoRow label="Submitted">
+                  <p className="text-xs" style={{ color: '#374151' }}>{formatDate(selected.timestamp)}</p>
+                </InfoRow>
+                {selected.call_booked && (
+                  <InfoRow label="Call Scheduled">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={12} style={{ color: '#16A34A' }} />
+                      <p className="text-xs" style={{ color: '#374151' }}>
+                        {selected.appointment_time ? formatDate(selected.appointment_time) : 'Booked'}
+                        {selected.appointment_timezone && ` (${selected.appointment_timezone})`}
+                      </p>
+                    </div>
+                  </InfoRow>
+                )}
+
+                {/* Status update */}
+                <div className="rounded-xl border p-4" style={{ borderColor: '#E5E7EB' }}>
+                  <p className="mb-3 text-xs font-medium" style={{ color: '#374151' }}>Update Status</p>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUS_OPTIONS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => updateStatus(selected.id, s)}
+                        disabled={updating || selected.status === s}
+                        className="rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50"
+                        style={{
+                          backgroundColor: selected.status === s ? '#1B3A7A' : 'white',
+                          color: selected.status === s ? 'white' : '#6B7280',
+                          borderColor: selected.status === s ? '#1B3A7A' : '#E5E7EB',
+                        }}
+                      >
+                        {s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </>
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <p className="text-xs" style={{ color: '#9CA3AF' }}>Select an escalation to view details</p>

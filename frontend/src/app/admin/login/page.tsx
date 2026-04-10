@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
@@ -9,6 +9,8 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export default function AdminLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const wasReset = searchParams.get('reset') === '1'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -68,6 +70,12 @@ export default function AdminLoginPage() {
               RelayPay Support Portal
             </p>
           </div>
+
+          {wasReset && (
+            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs" style={{ color: '#065F46' }}>
+              Password updated successfully. Sign in with your new password.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
@@ -12,7 +12,25 @@ export default function ResetPasswordPage() {
   const [confirm, setConfirm] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState('')
+
+  // Wait for Supabase to pick up the recovery token from the URL hash
+  // and establish a session before allowing the form to submit
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        setIsReady(true)
+      }
+    })
+
+    // Also check if session already exists (page reload after token exchange)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setIsReady(true)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -34,6 +52,7 @@ export default function ResetPasswordPage() {
       return
     }
 
+    await supabase.auth.signOut()
     router.push('/admin/login?reset=1')
   }
 
@@ -47,39 +66,45 @@ export default function ResetPasswordPage() {
           <div className="mb-6">
             <h1 className="text-base font-semibold" style={{ color: '#111827' }}>Set New Password</h1>
             <p className="mt-0.5 text-xs" style={{ color: '#6B7280' }}>
-              Choose a new password for your account.
+              {isReady ? 'Choose a new password for your account.' : 'Verifying reset link...'}
             </p>
           </div>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <PasswordField
-              label="New Password"
-              value={password}
-              onChange={setPassword}
-              show={showPw}
-              onToggle={() => setShowPw((p) => !p)}
-            />
-            <PasswordField
-              label="Confirm Password"
-              value={confirm}
-              onChange={setConfirm}
-              show={showPw}
-              onToggle={() => setShowPw((p) => !p)}
-            />
-            {error && (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs" style={{ color: '#DC2626' }}>
-                {error}
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white hover:bg-[#162F63] transition-colors disabled:opacity-60"
-              style={{ backgroundColor: '#1B3A7A' }}
-            >
-              {isLoading && <Loader2 size={14} className="animate-spin" />}
-              {isLoading ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
+          {!isReady ? (
+            <div className="flex justify-center py-4">
+              <Loader2 size={20} className="animate-spin" style={{ color: '#9CA3AF' }} />
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <PasswordField
+                label="New Password"
+                value={password}
+                onChange={setPassword}
+                show={showPw}
+                onToggle={() => setShowPw((p) => !p)}
+              />
+              <PasswordField
+                label="Confirm Password"
+                value={confirm}
+                onChange={setConfirm}
+                show={showPw}
+                onToggle={() => setShowPw((p) => !p)}
+              />
+              {error && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs" style={{ color: '#DC2626' }}>
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white hover:bg-[#162F63] transition-colors disabled:opacity-60"
+                style={{ backgroundColor: '#1B3A7A' }}
+              >
+                {isLoading && <Loader2 size={14} className="animate-spin" />}
+                {isLoading ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

@@ -76,7 +76,7 @@ export default function AgentsPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b bg-white px-8 py-5" style={{ borderColor: '#E5E7EB' }}>
+      <div className="flex items-center justify-between border-b bg-white px-4 py-4 md:px-8 md:py-5" style={{ borderColor: '#E5E7EB' }}>
         <div>
           <h1 className="text-base font-semibold" style={{ color: '#111827' }}>Human Agents</h1>
           <p className="text-xs" style={{ color: '#6B7280' }}>
@@ -92,8 +92,8 @@ export default function AgentsPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="grid grid-cols-3 gap-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {agents.map((agent) => (
             <div key={agent.id} className="rounded-xl border bg-white p-5" style={{ borderColor: '#E5E7EB' }}>
               <div className="flex items-start justify-between mb-3">

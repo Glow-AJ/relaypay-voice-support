@@ -80,8 +80,11 @@ export default function EscalationsPage() {
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      {/* List panel */}
-      <div className="flex w-1/2 flex-col border-r overflow-hidden" style={{ borderColor: '#E5E7EB' }}>
+      {/* List panel — full width on mobile when nothing selected; half on desktop */}
+      <div
+        className={`flex flex-col border-r overflow-hidden md:w-1/2 ${selected ? 'hidden md:flex' : 'flex w-full'}`}
+        style={{ borderColor: '#E5E7EB' }}
+      >
         {/* Header */}
         <div className="border-b bg-white px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
           <h1 className="text-base font-semibold" style={{ color: '#111827' }}>Escalations</h1>
@@ -150,8 +153,20 @@ export default function EscalationsPage() {
         </div>
       </div>
 
-      {/* Detail panel */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* Detail panel — hidden on mobile when nothing selected */}
+      <div className={`flex-1 flex-col overflow-y-auto ${selected ? 'flex' : 'hidden md:flex'}`}>
+        {selected ? (
+          <>
+            {/* Mobile back button */}
+            <button
+              onClick={() => setSelected(null)}
+              className="flex md:hidden items-center gap-1.5 border-b bg-white px-4 py-3 text-xs font-medium"
+              style={{ borderColor: '#E5E7EB', color: '#1B3A7A' }}
+            >
+              ← Back to list
+            </button>
+          </>
+        ) : null}
         {selected ? (
           <EscalationDetail
             escalation={selected}
