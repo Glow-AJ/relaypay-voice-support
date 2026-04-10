@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
-export default function AdminLoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const wasReset = searchParams.get('reset') === '1'
@@ -152,5 +152,17 @@ export default function AdminLoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F8FA]">
+        <Loader2 size={24} className="animate-spin text-gray-400" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
