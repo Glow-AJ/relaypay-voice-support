@@ -15,6 +15,10 @@ import type { Database } from '@/lib/database.types'
 
 type Message = Database['public']['Tables']['messages']['Row']
 
+// VAPI Singleton to prevent strict mode and hot-reload from causing
+// multiple parallel WebRTC connections which crash the Daily.co pipeline.
+let vapiInstance: Vapi | null = null
+
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId()
   const stored = localStorage.getItem('rp_session_id')
@@ -47,8 +51,21 @@ export default function SupportPage() {
     const webToken = process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN
     if (!webToken || webToken === 'your_vapi_web_token_here') return
 
-    const vapi = new Vapi(webToken)
+    if (!vapiInstance) {
+      vapiInstance = new Vapi(webToken)
+    }
+    
+    // Use the singleton instance
+    const vapi = vapiInstance
     vapiRef.current = vapi
+
+    // We make sure to remove existing listeners to prevent duplicates on re-mounts
+    vapi.removeAllListeners('call-start')
+    vapi.removeAllListeners('call-end')
+    vapi.removeAllListeners('speech-start')
+    vapi.removeAllListeners('speech-end')
+    vapi.removeAllListeners('error')
+    vapi.removeAllListeners('message')
 
     vapi.on('call-start', () => setVoiceStatus('listening'))
     vapi.on('call-end', () => {
