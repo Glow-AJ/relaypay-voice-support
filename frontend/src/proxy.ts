@@ -30,11 +30,32 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // No session → redirect to login (except login page itself)
-  if (!user && pathname.startsWith('/admin') && pathname !== '/admin/login') {
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/admin/login'
-    return NextResponse.redirect(loginUrl)
+  // Public paths that never require authentication
+  const adminPublicPaths = ['/admin/login', '/admin/forgot-password', '/admin/reset-password']
+  const agentPublicPaths = ['/agent/accept-invite']
+
+  // Protect /admin/* — redirect to login if not authenticated
+  if (
+    pathname.startsWith('/admin') &&
+    !adminPublicPaths.some((p) => pathname.startsWith(p))
+  ) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone()
+      loginUrl.pathname = '/admin/login'
+      return NextResponse.redirect(loginUrl)
+    }
+  }
+
+  // Protect /agent/* — redirect to login if not authenticated
+  if (
+    pathname.startsWith('/agent') &&
+    !agentPublicPaths.some((p) => pathname.startsWith(p))
+  ) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone()
+      loginUrl.pathname = '/admin/login'
+      return NextResponse.redirect(loginUrl)
+    }
   }
 
   // Already logged in → don't show login page, go to admin
@@ -48,5 +69,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/agent/:path*'],
 }
