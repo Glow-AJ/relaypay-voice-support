@@ -210,6 +210,7 @@ export interface Database {
           email: string
           role: 'support' | 'admin' | 'supervisor'
           is_available: boolean
+          last_assigned_at: string | null
           created_at: string
         }
         Insert: {
@@ -218,6 +219,7 @@ export interface Database {
           email: string
           role?: 'support' | 'admin' | 'supervisor'
           is_available?: boolean
+          last_assigned_at?: string | null
           created_at?: string
         }
         Update: {
@@ -226,6 +228,7 @@ export interface Database {
           email?: string
           role?: 'support' | 'admin' | 'supervisor'
           is_available?: boolean
+          last_assigned_at?: string | null
         }
         Relationships: []
       }

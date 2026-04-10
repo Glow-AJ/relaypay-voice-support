@@ -31,6 +31,7 @@ export default function SupportPage() {
   const [isSending, setIsSending] = useState(false)
   const [showEscalation, setShowEscalation] = useState(false)
   const [escalationMessage, setEscalationMessage] = useState('')
+  const [conversationChannel, setConversationChannel] = useState<'voice' | 'text'>('text')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [finalTranscript, setFinalTranscript] = useState('')
   const [agentSubtitle, setAgentSubtitle] = useState('')
@@ -82,6 +83,7 @@ export default function SupportPage() {
 
       if (conv) {
         setConversationId(conv.id)
+        setConversationChannel((conv.channel as 'voice' | 'text') ?? 'text')
         const { data: msgs } = await supabase
           .from('messages')
           .select('*')
@@ -125,6 +127,7 @@ export default function SupportPage() {
       .single()
     if (error || !data) throw new Error('Failed to create conversation')
     setConversationId(data.id)
+    setConversationChannel(channel)
     return data.id
   }, [conversationId, sessionId])
 
@@ -241,7 +244,7 @@ export default function SupportPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
-          <MessageThread messages={messages} isLoading={isSending} />
+          <MessageThread messages={messages} isLoading={isSending} channel={conversationChannel} />
         </div>
 
         {/* Live transcript / subtitle */}

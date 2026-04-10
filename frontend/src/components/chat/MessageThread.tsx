@@ -10,9 +10,10 @@ type Message = Database['public']['Tables']['messages']['Row']
 interface MessageThreadProps {
   messages: Message[]
   isLoading?: boolean
+  channel?: 'voice' | 'text'
 }
 
-export function MessageThread({ messages, isLoading = false }: MessageThreadProps) {
+export function MessageThread({ messages, isLoading = false, channel }: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export function MessageThread({ messages, isLoading = false }: MessageThreadProp
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-1 py-4">
       {messages.map((msg) => (
-        <MessageRow key={msg.id} message={msg} />
+        <MessageRow key={msg.id} message={msg} channel={channel} />
       ))}
       {isLoading && <ThinkingIndicator />}
       <div ref={bottomRef} />
@@ -46,7 +47,7 @@ export function MessageThread({ messages, isLoading = false }: MessageThreadProp
   )
 }
 
-function MessageRow({ message }: { message: Message }) {
+function MessageRow({ message, channel }: { message: Message; channel?: 'voice' | 'text' }) {
   const isUser = message.role === 'user'
 
   return (
@@ -72,7 +73,7 @@ function MessageRow({ message }: { message: Message }) {
       >
         <p>{message.content}</p>
         <div className="mt-1.5 flex items-center gap-1.5">
-          {message.audio_url && (
+          {(message.audio_url || channel === 'voice') && (
             <span title="Voice message">
               <Mic size={10} className="text-[#9CA3AF]" />
             </span>

@@ -7,11 +7,13 @@ import { formatDate } from '@/lib/utils'
 import type { Database } from '@/lib/database.types'
 
 type Escalation = Database['public']['Tables']['escalations']['Row']
+type Agent = Database['public']['Tables']['agents']['Row']
 
 const STATUS_OPTIONS = ['open', 'in_progress', 'closed'] as const
 
 export default function EscalationsPage() {
   const [escalations, setEscalations] = useState<Escalation[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'in_progress' | 'closed'>('all')
@@ -20,6 +22,7 @@ export default function EscalationsPage() {
 
   useEffect(() => {
     fetchEscalations()
+    fetchAgents()
 
     const channel = supabase
       .channel('escalations-page')
@@ -38,12 +41,29 @@ export default function EscalationsPage() {
     setLoading(false)
   }
 
+  async function fetchAgents() {
+    const { data } = await supabase
+      .from('agents')
+      .select('*')
+      .order('name', { ascending: true })
+    if (data) setAgents(data)
+  }
+
   async function updateStatus(id: string, status: typeof STATUS_OPTIONS[number]) {
     setUpdating(true)
     await supabase.from('escalations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setUpdating(false)
     fetchEscalations()
     if (selected?.id === id) setSelected((prev) => prev ? { ...prev, status } : null)
+  }
+
+  async function updateAgent(id: string, agentId: string | null) {
+    await supabase
+      .from('escalations')
+      .update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    setEscalations((prev) => prev.map((e) => e.id === id ? { ...e, assigned_agent_id: agentId } : e))
+    if (selected?.id === id) setSelected((prev) => prev ? { ...prev, assigned_agent_id: agentId } : null)
   }
 
   const filtered = escalations.filter((e) => {
@@ -133,7 +153,13 @@ export default function EscalationsPage() {
       {/* Detail panel */}
       <div className="flex flex-1 flex-col overflow-y-auto">
         {selected ? (
-          <EscalationDetail escalation={selected} onUpdateStatus={updateStatus} isUpdating={updating} />
+          <EscalationDetail
+            escalation={selected}
+            agents={agents}
+            onUpdateStatus={updateStatus}
+            onUpdateAgent={updateAgent}
+            isUpdating={updating}
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <p className="text-xs" style={{ color: '#9CA3AF' }}>Select an escalation to view details</p>
@@ -146,13 +172,19 @@ export default function EscalationsPage() {
 
 function EscalationDetail({
   escalation,
+  agents,
   onUpdateStatus,
+  onUpdateAgent,
   isUpdating,
 }: {
   escalation: Escalation
+  agents: Agent[]
   onUpdateStatus: (id: string, status: 'open' | 'in_progress' | 'closed') => void
+  onUpdateAgent: (id: string, agentId: string | null) => void
   isUpdating: boolean
 }) {
+  const assignedAgent = agents.find((a) => a.id === escalation.assigned_agent_id)
+
   return (
     <div className="flex flex-col gap-0">
       <div className="border-b bg-white px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
@@ -188,6 +220,26 @@ function EscalationDetail({
             </div>
           </InfoRow>
         )}
+
+        {/* Assigned agent */}
+        <InfoRow label="Assigned Agent">
+          <div className="flex items-center gap-2 mt-1">
+            <select
+              value={escalation.assigned_agent_id ?? ''}
+              onChange={(e) => onUpdateAgent(escalation.id, e.target.value || null)}
+              className="flex-1 rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:border-[#29ABE2] transition-colors"
+              style={{ borderColor: '#E5E7EB', color: escalation.assigned_agent_id ? '#111827' : '#9CA3AF', backgroundColor: '#F9FAFB' }}
+            >
+              <option value="">Unassigned</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+            {assignedAgent && (
+              <p className="text-[11px] shrink-0" style={{ color: '#6B7280' }}>{assignedAgent.email}</p>
+            )}
+          </div>
+        </InfoRow>
 
         {/* Status update */}
         <div className="rounded-xl border p-4" style={{ borderColor: '#E5E7EB' }}>
