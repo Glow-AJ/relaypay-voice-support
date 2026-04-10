@@ -234,42 +234,29 @@ export default function SupportPage() {
     window.location.reload()
   }, [voiceStatus])
 
-  // Toggle voice call
-  const handleVoiceToggle = useCallback(async () => {
+  // Toggle voice call — must stay synchronous to preserve browser user-gesture for WebRTC
+  const handleVoiceToggle = useCallback(() => {
     if (!vapiRef.current) { setVoiceStatus('error'); return }
 
     if (voiceStatus === 'idle' || voiceStatus === 'error') {
+      // Generate conversation ID instantly (synchronous, no await) so vapi.start()
+      // fires in the same tick as the click — satisfying the browser's security rule
+      const convId = ensureConversation('voice')
       setVoiceStatus('connecting')
-      
-      try {
-        // 1. Explicitly request microphone BEFORE starting VAPI
-        // This ensures the join timeout doesn't tick while the user is looking at the prompt
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          // Clean up the test stream immediately
-          stream.getTracks().forEach(track => track.stop())
-        } catch (e) {
-          console.warn('Microphone permission denied by user:', e)
-          setVoiceStatus('error')
-          return
-        }
 
-        // 2. Start VAPI immediately after permission is granted
-        const convId = ensureConversation('voice')
-        await vapiRef.current.start(
-          process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
-          {
-            metadata: { session_id: sessionId, conversation_id: convId },
-            variableValues: {
-              currentDateTime: new Date().toLocaleString(),
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            },
+      vapiRef.current.start(
+        process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
+        {
+          metadata: { session_id: sessionId, conversation_id: convId },
+          variableValues: {
+            currentDateTime: new Date().toLocaleString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
-        )
-      } catch (err) {
+        },
+      ).catch((err: Error) => {
         console.error('VAPI start error:', err)
         setVoiceStatus('error')
-      }
+      })
     } else {
       vapiRef.current.stop()
       setVoiceStatus('idle')
