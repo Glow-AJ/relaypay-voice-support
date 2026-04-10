@@ -55,7 +55,10 @@ export default function SupportPage() {
     })
     vapi.on('speech-start', () => setVoiceStatus('speaking'))
     vapi.on('speech-end', () => setVoiceStatus('listening'))
-    vapi.on('error', () => setVoiceStatus('error'))
+    vapi.on('error', (e: any) => {
+      console.error('[VAPI error]', e)
+      setVoiceStatus('error')
+    })
 
     vapi.on('message', (msg: any) => {
       if (msg.type === 'transcript') {
@@ -188,12 +191,12 @@ export default function SupportPage() {
       setVoiceStatus('connecting')
       try {
         const convId = await ensureConversation('voice')
-        await vapiRef.current.start({
-          assistantId: process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID,
-          assistantOverrides: {
+        await vapiRef.current.start(
+          process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
+          {
             metadata: { session_id: sessionId, conversation_id: convId },
           },
-        } as any)
+        )
       } catch { setVoiceStatus('error') }
     } else {
       vapiRef.current.stop()
