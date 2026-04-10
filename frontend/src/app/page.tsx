@@ -35,6 +35,7 @@ export default function SupportPage() {
   const [partialTranscript, setPartialTranscript] = useState('')
   const [finalTranscript, setFinalTranscript] = useState('')
   const [agentSubtitle, setAgentSubtitle] = useState('')
+  const [activeTab, setActiveTab] = useState<'voice' | 'text'>('text')
 
   const vapiRef = useRef<Vapi | null>(null)
   // Mirror voiceStatus in a ref so real-time subscription callbacks can read current value
@@ -67,12 +68,20 @@ export default function SupportPage() {
       if (msg.type === 'transcript') {
         const text = typeof msg.transcript === 'string' ? msg.transcript 
                     : (msg.transcript?.text || msg.transcript?.content || '');
-        if (msg.transcriptType === 'partial') setPartialTranscript(text)
-        else if (msg.transcriptType === 'final') {
-          setFinalTranscript(text)
-          setPartialTranscript('')
+        
+        // Correctly route to Agent or User based on the defined role
+        if (msg.role === 'assistant') {
+          setAgentSubtitle(text)
+        } else {
+          if (msg.transcriptType === 'partial') setPartialTranscript(text)
+          else if (msg.transcriptType === 'final') {
+            setFinalTranscript(text)
+            setPartialTranscript('')
+            setAgentSubtitle('') // clear agent text when user speaks
+          }
         }
       }
+      // model-output is an older vapi pattern, but supported just in case
       if (msg.type === 'model-output') {
         const text = typeof msg.output === 'string' ? msg.output 
                     : (msg.output?.content || msg.output?.text || '');
@@ -232,6 +241,16 @@ export default function SupportPage() {
     if (voiceStatus === 'idle' || voiceStatus === 'error') {
       setVoiceStatus('connecting')
       try {
+        // Pre-flight mic check to prevent VAPI internal timeout if user delays 'Allow' click
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          stream.getTracks().forEach(track => track.stop())
+        } catch (e) {
+          console.warn('Mic permission denied or failed:', e)
+          setVoiceStatus('error')
+          return
+        }
+
         const convId = ensureConversation('voice')
         await vapiRef.current.start(
           process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
@@ -243,7 +262,10 @@ export default function SupportPage() {
             },
           },
         )
-      } catch { setVoiceStatus('error') }
+      } catch (err) { 
+        console.error('VAPI Start:', err)
+        setVoiceStatus('error') 
+      }
     } else {
       vapiRef.current.stop()
       setVoiceStatus('idle')
@@ -335,29 +357,51 @@ export default function SupportPage() {
 
         {/* Controls */}
         <VapiErrorBoundary>
-          <div className="mt-5 flex flex-col items-center gap-4">
-            <VoiceButton status={voiceStatus} onToggle={handleVoiceToggle} disabled={isSending} />
-
-            <div className="flex w-full items-center gap-3">
-              <div className="h-px flex-1" style={{ backgroundColor: '#E5E7EB' }} />
-              <span className="text-[11px] font-medium" style={{ color: '#9CA3AF' }}>or type</span>
-              <div className="h-px flex-1" style={{ backgroundColor: '#E5E7EB' }} />
+          <div className="mt-3 flex flex-col items-center gap-3 w-full shrink-0">
+            
+            {/* Tab Switcher */}
+            <div className="flex w-full max-w-[200px] rounded-full bg-[#F3F4F6] p-1 border border-[#E5E7EB]">
+              <button
+                onClick={() => setActiveTab('text')}
+                className={`flex-1 rounded-full py-1.5 text-[11px] font-semibold transition-all ${
+                  activeTab === 'text' ? 'bg-white text-[#111827] shadow-sm border border-[#E5E7EB]' : 'text-[#9CA3AF] hover:text-[#6B7280]'
+                }`}
+              >
+                Keyboard
+              </button>
+              <button
+                onClick={() => setActiveTab('voice')}
+                className={`flex-1 rounded-full py-1.5 text-[11px] font-semibold transition-all ${
+                  activeTab === 'voice' ? 'bg-white text-[#111827] shadow-sm border border-[#E5E7EB]' : 'text-[#9CA3AF] hover:text-[#6B7280]'
+                }`}
+              >
+                Voice
+              </button>
             </div>
 
-            <div className="w-full">
-              <TextInput
-                onSend={handleSendText}
-                disabled={isSending || voiceStatus === 'listening' || voiceStatus === 'speaking'}
-                placeholder={
-                  voiceStatus !== 'idle' && voiceStatus !== 'error'
-                    ? 'Voice session active...'
-                    : 'Type your question here...'
-                }
-              />
+            {/* Input Area */}
+            <div className="w-full flex justify-center items-center min-h-[50px]">
+              {activeTab === 'voice' ? (
+                <div className="-mt-2">
+                  <VoiceButton status={voiceStatus} onToggle={handleVoiceToggle} disabled={isSending} />
+                </div>
+              ) : (
+                <div className="w-full px-1">
+                  <TextInput
+                    onSend={handleSendText}
+                    disabled={isSending || voiceStatus === 'listening' || voiceStatus === 'speaking'}
+                    placeholder={
+                      voiceStatus !== 'idle' && voiceStatus !== 'error'
+                        ? 'Voice session active...'
+                        : 'Type your question here...'
+                    }
+                  />
+                </div>
+              )}
             </div>
 
-            <p className="text-[11px]" style={{ color: '#9CA3AF' }}>
-              Powered by RelayPay Support · Responses grounded in official documentation
+            <p className="text-[10px] text-center" style={{ color: '#9CA3AF' }}>
+              Powered by RelayPay Support
             </p>
           </div>
         </VapiErrorBoundary>

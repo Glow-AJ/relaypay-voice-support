@@ -27,7 +27,12 @@ export function MessageThread({
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Defer scroll to next frame to guarantee DOM layout calculations have finished
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 50)
+    })
   }, [messages, partialTranscript, finalTranscript, agentSpeaking])
 
   const hasLiveTranscript = partialTranscript || finalTranscript || agentSpeaking
