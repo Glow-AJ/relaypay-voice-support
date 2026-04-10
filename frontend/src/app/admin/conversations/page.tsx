@@ -14,7 +14,7 @@ export default function ConversationsPage() {
   const [selected, setSelected] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true) // eslint-disable-line @typescript-eslint/no-unused-vars
 
   useEffect(() => {
     async function fetch() {
@@ -63,7 +63,7 @@ export default function ConversationsPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#F3F4F6' }}>
+        <div className="flex-1 overflow-y-auto divide-y divide-[#F3F4F6]">
           {filtered.map((conv) => (
             <button
               key={conv.id}

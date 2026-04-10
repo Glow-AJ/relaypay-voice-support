@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, Calendar, ChevronDown, Loader2 } from 'lucide-react'
+import { Search, Calendar, Loader2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Database } from '@/lib/database.types'
 
@@ -118,7 +118,7 @@ export default function EscalationsPage() {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#F3F4F6' }}>
+        <div className="flex-1 overflow-y-auto divide-y divide-[#F3F4F6]">
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 size={18} className="animate-spin" style={{ color: '#9CA3AF' }} />
