@@ -5,6 +5,7 @@ import Vapi from '@vapi-ai/web'
 import { supabase } from '@/lib/supabase'
 import { generateSessionId } from '@/lib/utils'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
+import { VapiErrorBoundary } from '@/components/VapiErrorBoundary'
 import { VoiceButton, VoiceStatus } from '@/components/chat/VoiceButton'
 import { TranscriptDisplay } from '@/components/chat/TranscriptDisplay'
 import { MessageThread } from '@/components/chat/MessageThread'
@@ -62,6 +63,8 @@ export default function SupportPage() {
       setPartialTranscript('')
       setFinalTranscript('')
       setAgentSubtitle('')
+      // Auto-reset to idle so user can retry without a page reload
+      setTimeout(() => setVoiceStatus('idle'), 2000)
     })
 
     vapi.on('message', (msg: any) => {
@@ -275,31 +278,33 @@ export default function SupportPage() {
         )}
 
         {/* Controls */}
-        <div className="mt-5 flex flex-col items-center gap-4">
-          <VoiceButton status={voiceStatus} onToggle={handleVoiceToggle} disabled={isSending} />
+        <VapiErrorBoundary>
+          <div className="mt-5 flex flex-col items-center gap-4">
+            <VoiceButton status={voiceStatus} onToggle={handleVoiceToggle} disabled={isSending} />
 
-          <div className="flex w-full items-center gap-3">
-            <div className="h-px flex-1" style={{ backgroundColor: '#E5E7EB' }} />
-            <span className="text-[11px] font-medium" style={{ color: '#9CA3AF' }}>or type</span>
-            <div className="h-px flex-1" style={{ backgroundColor: '#E5E7EB' }} />
+            <div className="flex w-full items-center gap-3">
+              <div className="h-px flex-1" style={{ backgroundColor: '#E5E7EB' }} />
+              <span className="text-[11px] font-medium" style={{ color: '#9CA3AF' }}>or type</span>
+              <div className="h-px flex-1" style={{ backgroundColor: '#E5E7EB' }} />
+            </div>
+
+            <div className="w-full">
+              <TextInput
+                onSend={handleSendText}
+                disabled={isSending || voiceStatus === 'listening' || voiceStatus === 'speaking'}
+                placeholder={
+                  voiceStatus !== 'idle' && voiceStatus !== 'error'
+                    ? 'Voice session active...'
+                    : 'Type your question here...'
+                }
+              />
+            </div>
+
+            <p className="text-[11px]" style={{ color: '#9CA3AF' }}>
+              Powered by RelayPay Support · Responses grounded in official documentation
+            </p>
           </div>
-
-          <div className="w-full">
-            <TextInput
-              onSend={handleSendText}
-              disabled={isSending || voiceStatus === 'listening' || voiceStatus === 'speaking'}
-              placeholder={
-                voiceStatus !== 'idle' && voiceStatus !== 'error'
-                  ? 'Voice session active...'
-                  : 'Type your question here...'
-              }
-            />
-          </div>
-
-          <p className="text-[11px]" style={{ color: '#9CA3AF' }}>
-            Powered by RelayPay Support · Responses grounded in official documentation
-          </p>
-        </div>
+        </VapiErrorBoundary>
       </main>
 
       <EscalationModal

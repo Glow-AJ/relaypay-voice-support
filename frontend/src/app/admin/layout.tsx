@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
 import {
   LayoutDashboard,
@@ -25,6 +26,24 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const [openEscalationCount, setOpenEscalationCount] = useState<number>(0)
+
+  useEffect(() => {
+    async function fetchCount() {
+      const { count } = await supabase
+        .from('escalations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+      setOpenEscalationCount(count ?? 0)
+    }
+    fetchCount()
+
+    const ch = supabase
+      .channel('escalation-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalations' }, fetchCount)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -53,6 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
           {navItems.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href)
+            const isEscalations = href === '/admin/escalations'
             return (
               <Link
                 key={href}
@@ -66,6 +86,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <Icon size={15} strokeWidth={active ? 2 : 1.5} />
                 {label}
+                {isEscalations && openEscalationCount > 0 && (
+                  <span
+                    className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none min-w-[16px] text-center"
+                    style={{ backgroundColor: '#F59E0B', color: '#FFFFFF' }}
+                  >
+                    {openEscalationCount}
+                  </span>
+                )}
               </Link>
             )
           })}
