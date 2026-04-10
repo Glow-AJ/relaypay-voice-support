@@ -10,7 +10,6 @@ import { VoiceButton, VoiceStatus } from '@/components/chat/VoiceButton'
 import { MessageThread } from '@/components/chat/MessageThread'
 import { TextInput } from '@/components/chat/TextInput'
 import { EscalationModal, EscalationFormData, BookingResult } from '@/components/chat/EscalationModal'
-import { Mic, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react'
 import type { Database } from '@/lib/database.types'
 
 type Message = Database['public']['Tables']['messages']['Row']
@@ -235,54 +234,47 @@ export default function SupportPage() {
     window.location.reload()
   }, [voiceStatus])
 
-  const [showMicModal, setShowMicModal] = useState(false)
-
-  // Actually prompt for mic and start VAPI
-  const handleConfirmMic = useCallback(async () => {
-    setShowMicModal(false)
-    if (!vapiRef.current) { setVoiceStatus('error'); return }
-    
-    setVoiceStatus('connecting')
-    try {
-      // Pre-flight mic check so the browser permission pop-up happens HERE explicitly
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach(track => track.stop())
-      } catch (e) {
-        console.warn('Mic permission denied or failed:', e)
-        setVoiceStatus('error')
-        return
-      }
-
-      const convId = ensureConversation('voice')
-      await vapiRef.current.start(
-        process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
-        {
-          metadata: { session_id: sessionId, conversation_id: convId },
-          variableValues: {
-            currentDateTime: new Date().toLocaleString(),
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          },
-        },
-      )
-    } catch (err) { 
-      console.error('VAPI Start:', err)
-      setVoiceStatus('error') 
-    }
-  }, [ensureConversation, sessionId])
-
   // Toggle voice call
   const handleVoiceToggle = useCallback(async () => {
     if (!vapiRef.current) { setVoiceStatus('error'); return }
 
     if (voiceStatus === 'idle' || voiceStatus === 'error') {
-      // Open our local modal first instead of triggering browser immediately!
-      setShowMicModal(true)
+      setVoiceStatus('connecting')
+      
+      try {
+        // 1. Explicitly request microphone BEFORE starting VAPI
+        // This ensures the join timeout doesn't tick while the user is looking at the prompt
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          // Clean up the test stream immediately
+          stream.getTracks().forEach(track => track.stop())
+        } catch (e) {
+          console.warn('Microphone permission denied by user:', e)
+          setVoiceStatus('error')
+          return
+        }
+
+        // 2. Start VAPI immediately after permission is granted
+        const convId = ensureConversation('voice')
+        await vapiRef.current.start(
+          process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
+          {
+            metadata: { session_id: sessionId, conversation_id: convId },
+            variableValues: {
+              currentDateTime: new Date().toLocaleString(),
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          },
+        )
+      } catch (err) {
+        console.error('VAPI start error:', err)
+        setVoiceStatus('error')
+      }
     } else {
       vapiRef.current.stop()
       setVoiceStatus('idle')
     }
-  }, [voiceStatus])
+  }, [voiceStatus, ensureConversation, sessionId])
 
   // Send a system message into the live VAPI call (no-op if no active call)
   const sendVapiSystemMessage = useCallback((content: string) => {
@@ -425,54 +417,6 @@ export default function SupportPage() {
         onSubmit={handleEscalationSubmit}
         aiMessage={escalationMessage}
       />
-
-      <MicPermissionModal
-        isOpen={showMicModal}
-        onClose={() => setShowMicModal(false)}
-        onProceed={handleConfirmMic}
-      />
-    </div>
-  )
-}
-
-function MicPermissionModal({ isOpen, onClose, onProceed }: { isOpen: boolean; onClose: () => void; onProceed: () => void }) {
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF2FF]">
-          <Mic size={24} className="text-[#1B3A7A]" />
-        </div>
-        
-        <h3 className="text-lg font-semibold text-[#111827]">Allow Microphone Access</h3>
-        <p className="mt-2 text-sm text-[#6B7280]">
-          To use voice support, Elliot needs to hear you. Your browser will prompt you for permission after you click proceed.
-        </p>
-
-        <div className="mt-6 flex flex-col gap-3">
-          <button
-            onClick={onProceed}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1B3A7A] py-3 text-sm font-semibold text-white transition-all hover:bg-[#1B3A7A]/90 active:scale-[0.98]"
-          >
-            <ShieldCheck size={18} />
-            Connect Microphone
-          </button>
-          <button
-            onClick={onClose}
-            className="w-full rounded-xl py-2.5 text-xs font-medium text-[#6B7280] transition-colors hover:bg-[#F3F4F6]"
-          >
-            Cancel
-          </button>
-        </div>
-
-        <div className="mt-5 flex items-start gap-2 rounded-lg bg-amber-50 p-3">
-          <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
-          <p className="text-[10px] leading-relaxed text-amber-800">
-            <strong>Note:</strong> If you've previously blocked access, you'll need to manually enable it in your browser settings to continue.
-          </p>
-        </div>
-      </div>
     </div>
   )
 }
