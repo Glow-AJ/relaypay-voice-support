@@ -38,6 +38,9 @@ export default function SupportPage() {
   const [agentSubtitle, setAgentSubtitle] = useState('')
 
   const vapiRef = useRef<Vapi | null>(null)
+  // Mirror voiceStatus in a ref so real-time subscription callbacks can read current value
+  const voiceStatusRef = useRef<VoiceStatus>('idle')
+  useEffect(() => { voiceStatusRef.current = voiceStatus }, [voiceStatus])
 
   // Init VAPI
   useEffect(() => {
@@ -117,10 +120,19 @@ export default function SupportPage() {
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
+        const newMsg = payload.new as Message
         setMessages((prev) => {
-          const exists = prev.some((m) => m.id === payload.new.id)
-          return exists ? prev : [...prev, payload.new as Message]
+          const exists = prev.some((m) => m.id === newMsg.id)
+          return exists ? prev : [...prev, newMsg]
         })
+        // Voice escalation: show modal when escalated message arrives during active voice call
+        if (
+          newMsg.action_taken === 'escalated' &&
+          (voiceStatusRef.current === 'listening' || voiceStatusRef.current === 'speaking' || voiceStatusRef.current === 'connecting')
+        ) {
+          setEscalationMessage(newMsg.content)
+          setShowEscalation(true)
+        }
       })
       .subscribe()
 
@@ -200,6 +212,10 @@ export default function SupportPage() {
           process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
           {
             metadata: { session_id: sessionId, conversation_id: convId },
+            variableValues: {
+              currentDateTime: new Date().toLocaleString(),
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
           },
         )
       } catch { setVoiceStatus('error') }
@@ -209,7 +225,25 @@ export default function SupportPage() {
     }
   }, [voiceStatus, ensureConversation, sessionId])
 
-  // Escalation booking — returns availability result from n8n
+  // Send a system message into the live VAPI call (no-op if no active call)
+  const sendVapiSystemMessage = useCallback((content: string) => {
+    if (!vapiRef.current) return
+    const vs = voiceStatusRef.current
+    if (vs === 'listening' || vs === 'speaking') {
+      vapiRef.current.send({
+        type: 'add-message',
+        message: { role: 'system', content },
+      })
+    }
+  }, [])
+
+  // Close escalation modal — tell VAPI if voice call is active
+  const handleEscalationClose = useCallback(() => {
+    setShowEscalation(false)
+    sendVapiSystemMessage('Customer closed the escalation form without submitting.')
+  }, [sendVapiSystemMessage])
+
+  // Escalation booking — returns availability result from n8n, then tells VAPI
   const handleEscalationSubmit = useCallback(async (data: EscalationFormData): Promise<BookingResult> => {
     const response = await fetch(`${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-book-appointment`, {
       method: 'POST',
@@ -222,8 +256,9 @@ export default function SupportPage() {
     })
     if (!response.ok) throw new Error('Booking request failed')
     const result = await response.json()
+    sendVapiSystemMessage('Customer submitted the escalation form.')
     return result as BookingResult
-  }, [sessionId, conversationId])
+  }, [sessionId, conversationId, sendVapiSystemMessage])
 
   return (
     <div className="flex h-screen flex-col" style={{ backgroundColor: '#F7F8FA' }}>
@@ -309,7 +344,7 @@ export default function SupportPage() {
 
       <EscalationModal
         isOpen={showEscalation}
-        onClose={() => setShowEscalation(false)}
+        onClose={handleEscalationClose}
         onSubmit={handleEscalationSubmit}
         aiMessage={escalationMessage}
       />

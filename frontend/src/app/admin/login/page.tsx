@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { RelayPayLogo } from '@/components/RelayPayLogo'
-import { Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -19,7 +20,7 @@ export default function AdminLoginPage() {
     setError('')
     setIsLoading(true)
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     })
@@ -34,7 +35,19 @@ export default function AdminLoginPage() {
       return
     }
 
-    // Refresh so server components see the new session cookie
+    // Route agents to their portal, admins to the admin dashboard
+    if (data.user) {
+      const { data: agent } = await supabase
+        .from('agents')
+        .select('id')
+        .eq('user_id', data.user.id)
+        .maybeSingle()
+      if (agent) {
+        router.push('/agent')
+        return
+      }
+    }
+
     router.push('/admin')
     router.refresh()
   }
@@ -73,9 +86,18 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: '#374151' }}>
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-xs font-medium" style={{ color: '#374151' }}>
+                  Password
+                </label>
+                <Link
+                  href="/admin/forgot-password"
+                  className="text-[11px] underline"
+                  style={{ color: '#6B7280' }}
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}

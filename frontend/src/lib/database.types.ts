@@ -211,6 +211,9 @@ export interface Database {
           role: 'support' | 'admin' | 'supervisor'
           is_available: boolean
           last_assigned_at: string | null
+          invite_status: 'pending' | 'accepted'
+          user_id: string | null
+          invited_at: string | null
           created_at: string
         }
         Insert: {
@@ -220,6 +223,9 @@ export interface Database {
           role?: 'support' | 'admin' | 'supervisor'
           is_available?: boolean
           last_assigned_at?: string | null
+          invite_status?: 'pending' | 'accepted'
+          user_id?: string | null
+          invited_at?: string | null
           created_at?: string
         }
         Update: {
@@ -229,6 +235,9 @@ export interface Database {
           role?: 'support' | 'admin' | 'supervisor'
           is_available?: boolean
           last_assigned_at?: string | null
+          invite_status?: 'pending' | 'accepted'
+          user_id?: string | null
+          invited_at?: string | null
         }
         Relationships: []
       }

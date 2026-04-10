@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Trash2, ToggleLeft, ToggleRight, UserCircle } from 'lucide-react'
+import { Plus, Trash2, ToggleLeft, ToggleRight, UserCircle, RefreshCw } from 'lucide-react'
+import { validateEmail } from '@/lib/utils'
 import type { Database } from '@/lib/database.types'
 
 type Agent = Database['public']['Tables']['agents']['Row']
@@ -12,8 +13,10 @@ const ROLES = ['support', 'supervisor', 'admin'] as const
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', role: 'support' as const })
+  const [form, setForm] = useState({ name: '', email: '', role: 'support' as typeof ROLES[number] })
+  const [formError, setFormError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [resendingId, setResendingId] = useState<string | null>(null)
 
   useEffect(() => { fetchAgents() }, [])
 
@@ -23,9 +26,27 @@ export default function AgentsPage() {
   }
 
   async function handleAdd() {
-    if (!form.name.trim() || !form.email.trim()) return
+    setFormError('')
+    if (!form.name.trim() || !form.email.trim()) {
+      setFormError('Name and email are required.')
+      return
+    }
+    if (!validateEmail(form.email)) {
+      setFormError('Please enter a valid email address.')
+      return
+    }
     setIsSaving(true)
-    await supabase.from('agents').insert({ ...form, is_available: true })
+    const res = await fetch('/api/admin/invite-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), role: form.role }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setFormError(data.error || 'Failed to send invite.')
+      setIsSaving(false)
+      return
+    }
     setForm({ name: '', email: '', role: 'support' })
     setShowForm(false)
     setIsSaving(false)
@@ -43,6 +64,16 @@ export default function AgentsPage() {
     fetchAgents()
   }
 
+  async function handleResendInvite(agent: Agent) {
+    setResendingId(agent.id)
+    await fetch('/api/admin/resend-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: agent.email }),
+    })
+    setResendingId(null)
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b bg-white px-8 py-5" style={{ borderColor: '#E5E7EB' }}>
@@ -53,7 +84,7 @@ export default function AgentsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => { setFormError(''); setShowForm(true) }}
           className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white hover:bg-[#162F63] transition-colors"
           style={{ backgroundColor: '#1B3A7A' }}
         >
@@ -69,7 +100,7 @@ export default function AgentsPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: '#EEF2FF' }}>
                   <UserCircle size={22} style={{ color: '#1B3A7A' }} />
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 items-center">
                   <button onClick={() => handleToggle(agent)} title={agent.is_available ? 'Mark unavailable' : 'Mark available'}>
                     {agent.is_available
                       ? <ToggleRight size={20} style={{ color: '#16A34A' }} />
@@ -83,7 +114,7 @@ export default function AgentsPage() {
               </div>
               <p className="text-sm font-semibold" style={{ color: '#111827' }}>{agent.name}</p>
               <p className="text-xs" style={{ color: '#6B7280' }}>{agent.email}</p>
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
                   {agent.role}
                 </span>
@@ -93,17 +124,41 @@ export default function AgentsPage() {
                 >
                   {agent.is_available ? 'Available' : 'Unavailable'}
                 </span>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  style={{
+                    backgroundColor: agent.invite_status === 'accepted' ? '#D1FAE5' : '#FEF3C7',
+                    color: agent.invite_status === 'accepted' ? '#065F46' : '#92400E',
+                  }}
+                >
+                  {agent.invite_status === 'accepted' ? 'Active' : 'Invite Pending'}
+                </span>
               </div>
+              {agent.invite_status === 'pending' && (
+                <button
+                  onClick={() => handleResendInvite(agent)}
+                  disabled={resendingId === agent.id}
+                  className="mt-3 flex items-center gap-1.5 text-[11px] font-medium transition-colors disabled:opacity-50"
+                  style={{ color: '#1B3A7A' }}
+                >
+                  <RefreshCw size={11} className={resendingId === agent.id ? 'animate-spin' : ''} />
+                  {resendingId === agent.id ? 'Sending...' : 'Resend Invite'}
+                </button>
+              )}
             </div>
           ))}
         </div>
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowForm(false)}
+        >
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
             <div className="border-b px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
-              <h2 className="text-sm font-semibold" style={{ color: '#111827' }}>Add Agent</h2>
+              <h2 className="text-sm font-semibold" style={{ color: '#111827' }}>Invite Agent</h2>
+              <p className="mt-0.5 text-xs" style={{ color: '#6B7280' }}>An invite email will be sent to set up their account.</p>
             </div>
             <div className="flex flex-col gap-4 px-6 py-5">
               {(['name', 'email'] as const).map((field) => (
@@ -122,16 +177,23 @@ export default function AgentsPage() {
                 <label className="mb-1 block text-xs font-medium" style={{ color: '#374151' }}>Role</label>
                 <select
                   value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value as any })}
+                  onChange={(e) => setForm({ ...form, role: e.target.value as typeof ROLES[number] })}
                   className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
                   style={{ borderColor: '#E5E7EB', color: '#111827' }}
                 >
                   {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
                 </select>
               </div>
+              {formError && (
+                <p className="text-xs" style={{ color: '#DC2626' }}>{formError}</p>
+              )}
             </div>
             <div className="flex justify-end gap-2 border-t px-6 py-4" style={{ borderColor: '#E5E7EB' }}>
-              <button onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-xs font-medium" style={{ borderColor: '#E5E7EB', color: '#6B7280' }}>
+              <button
+                onClick={() => setShowForm(false)}
+                className="rounded-lg border px-4 py-2 text-xs font-medium"
+                style={{ borderColor: '#E5E7EB', color: '#6B7280' }}
+              >
                 Cancel
               </button>
               <button
@@ -140,7 +202,7 @@ export default function AgentsPage() {
                 className="rounded-lg px-4 py-2 text-xs font-medium text-white disabled:opacity-60"
                 style={{ backgroundColor: '#1B3A7A' }}
               >
-                {isSaving ? 'Saving...' : 'Add Agent'}
+                {isSaving ? 'Sending Invite...' : 'Send Invite'}
               </button>
             </div>
           </div>

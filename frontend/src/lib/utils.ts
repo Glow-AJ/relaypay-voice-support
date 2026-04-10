@@ -23,3 +23,7 @@ export function formatDate(date: string | Date): string {
     year: 'numeric',
   })
 }
+
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}

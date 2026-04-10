@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Calendar, User, Mail, Clock, CheckCircle } from 'lucide-react'
+import { validateEmail } from '@/lib/utils'
 
 export interface EscalationFormData {
   name: string
@@ -44,6 +45,10 @@ export function EscalationModal({ isOpen, onClose, onSubmit, aiMessage }: Escala
     setError('')
     if (!form.name || !form.email || !form.preferredDate || !form.preferredTime) {
       setError('Please fill in all fields.')
+      return
+    }
+    if (!validateEmail(form.email)) {
+      setError('Please enter a valid email address.')
       return
     }
     setIsSubmitting(true)
