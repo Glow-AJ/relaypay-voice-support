@@ -148,18 +148,28 @@ export default function SupportPage() {
     return () => { supabase.removeChannel(channel) }
   }, [conversationId])
 
-  // Ensure conversation exists
-  const ensureConversation = useCallback(async (channel: 'voice' | 'text'): Promise<string> => {
+  // Ensure conversation exists non-blocking to prevent WebRTC mic permission timeouts
+  const ensureConversation = useCallback((channel: 'voice' | 'text'): string => {
     if (conversationId) return conversationId
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({ session_id: sessionId, channel, status: 'active' })
-      .select('id')
-      .single()
-    if (error || !data) throw new Error('Failed to create conversation')
-    setConversationId(data.id)
+
+    // Generate reliable local UUID
+    const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+      ? crypto.randomUUID() 
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+        })
+
+    setConversationId(newId)
     setConversationChannel(channel)
-    return data.id
+
+    // Fire-and-forget DB insertion to preserve synchronous click context
+    supabase
+      .from('conversations')
+      .insert({ id: newId, session_id: sessionId, channel, status: 'active' })
+      .then(({ error }) => { if (error) console.error('Failed to save conv:', error) })
+
+    return newId
   }, [conversationId, sessionId])
 
   // Send text message via n8n
@@ -167,7 +177,7 @@ export default function SupportPage() {
     if (isSending) return
     setIsSending(true)
     try {
-      const convId = await ensureConversation('text')
+      const convId = ensureConversation('text')
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-text`,
@@ -216,7 +226,7 @@ export default function SupportPage() {
     if (voiceStatus === 'idle' || voiceStatus === 'error') {
       setVoiceStatus('connecting')
       try {
-        const convId = await ensureConversation('voice')
+        const convId = ensureConversation('voice')
         await vapiRef.current.start(
           process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID as string,
           {
