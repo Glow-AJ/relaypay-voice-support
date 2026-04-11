@@ -275,10 +275,16 @@ export default function SupportPage() {
     }
   }, [])
 
-  // Close escalation modal — tell VAPI if voice call is active
+  // Close escalation modal without booking — tell VAPI the user declined
   const handleEscalationClose = useCallback(() => {
     setShowEscalation(false)
     sendVapiSystemMessage('Customer closed the escalation form without submitting.')
+  }, [sendVapiSystemMessage])
+
+  // Called after user clicks "Done" on the success screen — booking was confirmed
+  const handleEscalationDone = useCallback(() => {
+    setShowEscalation(false)
+    sendVapiSystemMessage('Customer has successfully booked a support call. The call is confirmed.')
   }, [sendVapiSystemMessage])
 
   // Escalation booking — returns availability result from n8n, then tells VAPI
@@ -401,6 +407,7 @@ export default function SupportPage() {
       <EscalationModal
         isOpen={showEscalation}
         onClose={handleEscalationClose}
+        onDone={handleEscalationDone}
         onSubmit={handleEscalationSubmit}
         aiMessage={escalationMessage}
       />

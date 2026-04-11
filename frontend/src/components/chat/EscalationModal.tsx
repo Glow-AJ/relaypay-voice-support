@@ -21,12 +21,13 @@ export interface BookingResult {
 
 interface EscalationModalProps {
   isOpen: boolean
-  onClose: () => void
+  onClose: () => void       // called when user cancels / dismisses without booking
+  onDone?: () => void       // called when user clicks "Done" after a successful booking
   onSubmit: (data: EscalationFormData) => Promise<BookingResult>
   aiMessage?: string
 }
 
-export function EscalationModal({ isOpen, onClose, onSubmit, aiMessage }: EscalationModalProps) {
+export function EscalationModal({ isOpen, onClose, onDone, onSubmit, aiMessage }: EscalationModalProps) {
   const [form, setForm] = useState<EscalationFormData>({
     name: '',
     email: '',
@@ -83,7 +84,7 @@ export function EscalationModal({ isOpen, onClose, onSubmit, aiMessage }: Escala
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={onDone ?? onClose}
               className="rounded-lg bg-[#1B3A7A] px-5 py-2 text-sm font-medium text-white hover:bg-[#162F63] transition-colors"
             >
               Done
