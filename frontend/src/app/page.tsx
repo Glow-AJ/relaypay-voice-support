@@ -168,14 +168,8 @@ export default function SupportPage() {
           const exists = prev.some((m) => m.id === newMsg.id)
           return exists ? prev : [...prev, newMsg]
         })
-        // Voice escalation: show modal when escalated message arrives during active voice call
-        if (
-          newMsg.action_taken === 'escalated' &&
-          (voiceStatusRef.current === 'listening' || voiceStatusRef.current === 'speaking' || voiceStatusRef.current === 'connecting')
-        ) {
-          setEscalationMessage(newMsg.content)
-          setShowEscalation(true)
-        }
+        // Note: escalation modal is now triggered via Vapi SDK 'tool-calls' event
+        // in the onMessage handler, not here, to avoid double-triggering.
       })
       .subscribe()
 
