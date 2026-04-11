@@ -294,13 +294,13 @@ export default function SupportPage() {
     sendVapiSystemMessage('Customer closed the escalation form without submitting.')
   }, [sendVapiSystemMessage])
 
-  // Called after user clicks "Done" on the success screen — booking was confirmed
+  // Called after user clicks "Done" on the success screen — no longer needed as modal
+  // auto-closes on submit, but kept as a safety fallback
   const handleEscalationDone = useCallback(() => {
     setShowEscalation(false)
-    sendVapiSystemMessage('Customer has successfully booked a support call. The call is confirmed.')
-  }, [sendVapiSystemMessage])
+  }, [])
 
-  // Escalation booking — returns availability result from n8n, then tells VAPI
+  // Escalation booking — closes modal immediately and tells Vapi the result via voice
   const handleEscalationSubmit = useCallback(async (data: EscalationFormData): Promise<BookingResult> => {
     const response = await fetch(`${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-book-appointment`, {
       method: 'POST',
@@ -313,7 +313,24 @@ export default function SupportPage() {
     })
     if (!response.ok) throw new Error('Booking request failed')
     const result = await response.json()
-    sendVapiSystemMessage('Customer submitted the escalation form.')
+
+    // Close the modal immediately — Vapi will handle the voice response
+    setShowEscalation(false)
+
+    // Inject the booking result as a system message so Vapi speaks it naturally
+    if (result.available) {
+      sendVapiSystemMessage(
+        `Customer has successfully booked a support call for ${result.display_time}. ` +
+        `A calendar invite will be sent to ${data.email}. ` +
+        `Confirm this to the customer and ask if there's anything else you can help with.`
+      )
+    } else {
+      sendVapiSystemMessage(
+        `The slot the customer requested is not available. An email with a booking link has been sent to ${data.email} ` +
+        `so they can pick a time that suits them. Apologise briefly and let them know.`
+      )
+    }
+
     return result as BookingResult
   }, [sessionId, conversationId, sendVapiSystemMessage])
 

@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ handled: false, reason: 'no conversationId' })
       }
 
-      const messages: Array<{ role: string; content: string }> = report.messages || report.transcript || []
+      // Vapi's end-of-call-report uses 'message' for the text; 'content' is a fallback
+      const messages: Array<{ role: string; content?: string; message?: string }> = report.messages || report.transcript || []
 
       if (!messages.length) {
         console.warn('[VAPI Webhook] end-of-call-report had no messages array')
@@ -39,13 +40,19 @@ export async function POST(req: NextRequest) {
         { auth: { autoRefreshToken: false, persistSession: false } }
       )
 
-      // Filter to only user/assistant messages (skip system/tool)
+      // Filter to only user/assistant messages (skip system/tool_calls)
       const toInsert = messages
-        .filter((m) => m.role === 'user' || m.role === 'bot' || m.role === 'assistant')
+        .filter((m) => {
+          const role = m.role
+          // Vapi uses 'bot' for assistant, skip system/tool/etc
+          return (role === 'user' || role === 'bot' || role === 'assistant')
+            && (m.content || m.message || '').trim().length > 0
+        })
         .map((m) => ({
           conversation_id: conversationId,
-          role: m.role === 'bot' ? 'assistant' : m.role,
-          content: m.content || '',
+          role: m.role === 'bot' ? 'assistant' : m.role as 'user' | 'assistant',
+          // Vapi end-of-call-report uses 'message' field; fallback to 'content' just in case
+          content: (m.message || m.content || '').trim(),
           created_at: timestamp,
         }))
 
