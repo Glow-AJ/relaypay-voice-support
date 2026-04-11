@@ -64,12 +64,31 @@ export default function SupportPage() {
       setVoiceStatus('error')
     }
     const onMessage = (msg: any) => {
-      // Defensively strictly enforce strings so we don't crash the React tree with object rendering
+      // ── Tool calls from VAPI ─────────────────────────────────────────────
+      // When the agent calls 'show_escalation_form', show the booking modal
+      if (msg.type === 'tool-calls') {
+        const calls: any[] = msg.toolCallList || msg.toolCalls || []
+        for (const call of calls) {
+          const name: string = call?.function?.name ?? ''
+          if (name === 'show_escalation_form' || name === 'show-escalation-form') {
+            const args = call?.function?.arguments ?? {}
+            const reason = args.escalationReason ?? args.reason ?? ''
+            setEscalationMessage(
+              reason
+                ? `A specialist can help you with this. Please fill in your details below so we can book a support call.`
+                : 'A specialist can help you with this. Would you like to schedule a support call?'
+            )
+            setShowEscalation(true)
+            break
+          }
+        }
+      }
+
+      // ── Transcript display ───────────────────────────────────────────────
       if (msg.type === 'transcript') {
         const text = typeof msg.transcript === 'string' ? msg.transcript 
                     : (msg.transcript?.text || msg.transcript?.content || '');
         
-        // Correctly route to Agent or User based on the defined role
         if (msg.role === 'assistant') {
           setAgentSubtitle(text)
         } else {
@@ -77,7 +96,7 @@ export default function SupportPage() {
           else if (msg.transcriptType === 'final') {
             setFinalTranscript(text)
             setPartialTranscript('')
-            setAgentSubtitle('') // clear agent text when user speaks
+            setAgentSubtitle('')
           }
         }
       }
