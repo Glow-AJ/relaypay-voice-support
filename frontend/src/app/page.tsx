@@ -8,7 +8,7 @@ import { RelayPayLogo } from '@/components/RelayPayLogo'
 import { VapiErrorBoundary } from '@/components/VapiErrorBoundary'
 import { VoiceButton, VoiceStatus } from '@/components/chat/VoiceButton'
 import { MessageThread } from '@/components/chat/MessageThread'
-import { TextInput } from '@/components/chat/TextInput'
+// TextInput removed — this interface is voice-only
 import { EscalationModal, EscalationFormData, BookingResult } from '@/components/chat/EscalationModal'
 import type { Database } from '@/lib/database.types'
 
@@ -28,14 +28,12 @@ export default function SupportPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [sessionId] = useState(() => getOrCreateSessionId())
-  const [isSending, setIsSending] = useState(false)
   const [showEscalation, setShowEscalation] = useState(false)
   const [escalationMessage, setEscalationMessage] = useState('')
-  const [conversationChannel, setConversationChannel] = useState<'voice' | 'text'>('text')
+  const [conversationChannel, setConversationChannel] = useState<'voice' | 'text'>('voice')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [finalTranscript, setFinalTranscript] = useState('')
   const [agentSubtitle, setAgentSubtitle] = useState('')
-  const [activeTab, setActiveTab] = useState<'voice' | 'text'>('text')
 
   const vapiRef = useRef<Vapi | null>(null)
   // Mirror voiceStatus in a ref so real-time subscription callbacks can read current value
@@ -200,40 +198,7 @@ export default function SupportPage() {
     return newId
   }, [conversationId, sessionId])
 
-  // Send text message via n8n
-  const handleSendText = useCallback(async (content: string) => {
-    if (isSending) return
-    setIsSending(true)
-    try {
-      const convId = ensureConversation('text')
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL}/relaypay-text`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: content,
-            session_id: sessionId,
-            conversation_id: convId,
-            channel: 'text',
-          }),
-        },
-      )
-
-      if (!response.ok) throw new Error('Response error')
-      const data = await response.json()
-
-      if (data.action === 'escalated') {
-        setEscalationMessage(data.message || 'A specialist can help you with this. Would you like to schedule a call?')
-        setShowEscalation(true)
-      }
-    } catch (err) {
-      console.error('Failed to send:', err)
-    } finally {
-      setIsSending(false)
-    }
-  }, [isSending, ensureConversation, sessionId])
+  // Text mode removed — this interface is voice-only
 
   // Start a new conversation session
   const handleNewConversation = useCallback(() => {
@@ -364,8 +329,8 @@ export default function SupportPage() {
           <div className="mb-6 rounded-xl border bg-white px-6 py-5" style={{ borderColor: '#E5E7EB' }}>
             <p className="text-sm font-semibold" style={{ color: '#111827' }}>How can we help you today?</p>
             <p className="mt-1 text-xs leading-relaxed" style={{ color: '#6B7280' }}>
+              Tap the microphone below to speak with Elliot, your RelayPay support agent.
               Ask about payments, fees, invoicing, payouts, or compliance.
-              Use the microphone to speak, or type your question below.
             </p>
           </div>
         )}
@@ -374,7 +339,7 @@ export default function SupportPage() {
         <div className="flex-1 overflow-y-auto">
           <MessageThread
             messages={messages.filter(m => m.role === 'user' || m.role === 'assistant')}
-            isLoading={isSending}
+            isLoading={false}
             channel={conversationChannel}
             partialTranscript={partialTranscript}
             finalTranscript={finalTranscript}
@@ -384,49 +349,8 @@ export default function SupportPage() {
 
         {/* Controls */}
         <VapiErrorBoundary>
-          <div className="mt-3 flex flex-col items-center gap-3 w-full shrink-0">
-            
-            {/* Tab Switcher */}
-            <div className="flex w-full max-w-[200px] rounded-full bg-[#F3F4F6] p-1 border border-[#E5E7EB]">
-              <button
-                onClick={() => setActiveTab('text')}
-                className={`flex-1 rounded-full py-1.5 text-[11px] font-semibold transition-all ${
-                  activeTab === 'text' ? 'bg-white text-[#111827] shadow-sm border border-[#E5E7EB]' : 'text-[#9CA3AF] hover:text-[#6B7280]'
-                }`}
-              >
-                Keyboard
-              </button>
-              <button
-                onClick={() => setActiveTab('voice')}
-                className={`flex-1 rounded-full py-1.5 text-[11px] font-semibold transition-all ${
-                  activeTab === 'voice' ? 'bg-white text-[#111827] shadow-sm border border-[#E5E7EB]' : 'text-[#9CA3AF] hover:text-[#6B7280]'
-                }`}
-              >
-                Voice
-              </button>
-            </div>
-
-            {/* Input Area */}
-            <div className="w-full flex justify-center items-center min-h-[50px]">
-              {activeTab === 'voice' ? (
-                <div className="-mt-2">
-                  <VoiceButton status={voiceStatus} onToggle={handleVoiceToggle} disabled={isSending} />
-                </div>
-              ) : (
-                <div className="w-full px-1">
-                  <TextInput
-                    onSend={handleSendText}
-                    disabled={isSending || voiceStatus === 'listening' || voiceStatus === 'speaking'}
-                    placeholder={
-                      voiceStatus !== 'idle' && voiceStatus !== 'error'
-                        ? 'Voice session active...'
-                        : 'Type your question here...'
-                    }
-                  />
-                </div>
-              )}
-            </div>
-
+          <div className="mt-3 flex flex-col items-center gap-4 w-full shrink-0 pb-2">
+            <VoiceButton status={voiceStatus} onToggle={handleVoiceToggle} />
             <p className="text-[10px] text-center" style={{ color: '#9CA3AF' }}>
               Powered by RelayPay Support
             </p>
